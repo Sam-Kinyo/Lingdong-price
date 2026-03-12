@@ -6,6 +6,7 @@ import { db } from './firebase-init.js';
 import { state } from './state.js';
 import { getInventoryRangeLabel, calcQuotePrice } from './helpers.js';
 import { getDriveMainImage, getDriveNetImages } from './data.js';
+import { activeCompanyKey, activeCompany } from './company-config.js';
 
 /* 報價單渲染 */
 export function renderQuoteList() {
@@ -113,7 +114,12 @@ export function downloadQuoteExcel() {
   const wb = XLSX.utils.book_new();
   const ws = XLSX.utils.aoa_to_sheet(rows);
   XLSX.utils.book_append_sheet(wb, ws, "報價單");
-  XLSX.writeFile(wb, `KINYO_報價單匯出_${new Date().toISOString().slice(0,10)}.xlsx`);
+  const prefix = activeCompanyKey === "lingdong" ? "lingdong" : (activeCompany.companyNameEn || "export");
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  XLSX.writeFile(wb, `${prefix}_${y}${m}${day}_報價單.xlsx`);
 }
 
 /* 報價行為記錄 */

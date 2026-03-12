@@ -2,14 +2,12 @@
    App 主入口 (Main Entry Point)
    所有模組在此整合
 ======================================================= */
-import { doc, setDoc } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
-import { db } from './firebase-init.js';
 import { state } from './state.js';
 import { closeSheet, closeQuoteSheet, openQuoteSheet, shuffleArray, calcQuotePrice, canViewTier } from './helpers.js';
 import { searchProducts, applySorting, setupQtySelectByLevel, updateUserDisplay } from './search.js';
 import { renderResults, updateMultiLineBtnState, updateToolbarScrollState } from './render.js';
 import { renderQuoteList, updateQuoteToolbarBtn, downloadQuoteExcel } from './quote.js';
-import { exportSelectedPPT, exportSelectedExcel, exportQuoteHistory } from './export.js';
+import { exportSelectedPPT, exportSelectedExcel } from './export.js';
 import { setupProductUpload, saveProductDataToFirestore, saveInventoryToFirestore } from './import.js';
 import { setupLoginButton, setupLogoutButton, setupAuthListener, updatePermissions } from './auth.js';
 import { applySystemBranding } from './company-config.js';
@@ -101,12 +99,6 @@ if(importProductBtn) {
     };
 }
 setupProductUpload();
-
-// 大數據匯出
-const exportHistoryBtn = document.getElementById("exportHistoryBtn");
-if(exportHistoryBtn) {
-    exportHistoryBtn.onclick = exportQuoteHistory;
-}
 
 if (levelSwitchSelect) {
   levelSwitchSelect.onchange = applyTemporaryLevelSwitch;
@@ -438,62 +430,6 @@ if (multiLineBtn) {
         navigator.clipboard.writeText(text)
             .then(() => alert(`已複製 ${checked.length} 項商品的報價資訊！請直接在 LINE 貼上。`))
             .catch(() => alert("複製失敗，請手動複製。"));
-    };
-}
-
-// 設定首頁熱門 (Level 4)
-const setHotBtn = document.getElementById("setHotBtn");
-if(setHotBtn) {
-    setHotBtn.onclick = async () => {
-        if (state.userLevel < 4) { alert("權限不足"); return; }
-
-        const checked = document.querySelectorAll(".row-check:checked");
-        const checkAllBox = document.getElementById("checkAll");
-        
-        if (checked.length === 0) { alert("請先勾選商品！"); return; }
-        if (checked.length > 6) { alert(`首頁版面限制 6 個商品，您目前勾選了 ${checked.length} 個。`); return; }
-
-        if(!confirm(`確定要將這 ${checked.length} 個商品設為首頁「本週熱門」嗎？\n(這將覆蓋舊的名單，並立即生效)`)) return;
-
-        setHotBtn.disabled = true;
-        setHotBtn.textContent = "設定中...";
-
-        try {
-            let newHotList = [];
-            let rank = 1;
-
-            for(const checkbox of checked) {
-                const model = checkbox.getAttribute("data-model");
-                const item = state.currentResultList.find(p => p.model === model) || state.productCache.find(p => p.model === model);
-                
-                if(item) {
-                    newHotList.push({
-                        model: item.model,
-                        count: Math.floor(180 - ((rank-1) * 25) + Math.random() * 15) 
-                    });
-                    rank++;
-                }
-            }
-
-            await setDoc(doc(db, "SiteConfig", "homeHotList"), {
-                updatedAt: new Date(),
-                items: newHotList,
-                editor: state.currentUserEmail
-            });
-
-            alert(`✅ 設定成功！首頁熱門榜已更新。\n共 ${newHotList.length} 筆商品。`);
-            
-            checkAllBox.checked = false;
-            checked.forEach(c => c.checked = false);
-            updateMultiLineBtnState();
-
-        } catch(e) {
-            console.error("設定失敗:", e);
-            alert("設定失敗：請檢查 Firebase Rules 是否允許 SiteConfig 寫入。");
-        } finally {
-            setHotBtn.disabled = false;
-            setHotBtn.textContent = "🔥 設為首頁熱門 (L4)";
-        }
     };
 }
 

@@ -102,6 +102,24 @@ python -m http.server 5600
 - 匯入入口：系統頁 `📥 匯入產品總表 (同步上下架)` 按鈕
 - 寫入目標：Firestore `Products` 集合（文件 ID = `splitCode`）
 
+## 商品圖片爬取工具（Python）
+- 工具檔：`tools/fetch_product_images.py`
+- 作用：讀取 Excel 的 `型號` + `商品對應網站`，自動爬網址找商品圖並下載到本機。
+
+### 安裝套件
+```powershell
+pip install requests beautifulsoup4 pandas openpyxl
+```
+
+### 執行範例
+```powershell
+python tools/fetch_product_images.py --input "c:\Users\郭庭豪\Desktop\暫存\LingDong商品總表.xlsx"
+```
+
+### 輸出結果
+- 圖片資料夾：`downloaded_images\`
+- 報表：`download_report.csv`（含成功/失敗、圖片網址、錯誤原因）
+
 ## 欄位固定規格（單一分頁）
 - 固定欄位：`品牌`、`分類`、`分流`、`國際條碼`、`型號`、`商品名稱`、`詢價含`、`市價含`、`售價含`、`箱入數`、`BSMI`、`NCC`、`狀態`、`商品對應網站`
 - 唯一鍵：`分流`（`splitCode`）。後續更新上下架、價格、欄位都以分流辨識。

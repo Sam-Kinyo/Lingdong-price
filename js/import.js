@@ -7,13 +7,13 @@ import { state } from './state.js';
 import { getDocsWithRetry } from './data.js';
 import { activeCompanyKey } from './company-config.js';
 
-const LINGDONG_REQUIRED_COLUMNS = [
+const LINGDONG_REQUIRED_KEYS = [
   "品牌", "分類", "分流", "國際條碼", "型號", "商品名稱",
-  "詢價\n含", "市價\n含", "售價\n含", "箱入數", "BSMI", "NCC", "狀態", "商品對應網站"
+  "詢價含", "市價含", "售價含", "箱入數", "BSMI", "NCC", "狀態", "商品對應網站"
 ];
 
-function hasLingdongColumns(rowObj) {
-  return LINGDONG_REQUIRED_COLUMNS.every((k) => Object.prototype.hasOwnProperty.call(rowObj, k));
+function normalizeHeaderKey(v) {
+  return String(v || "").replace(/\s+/g, "").replace(/[\r\n]+/g, "").trim();
 }
 
 function toText(v) {
@@ -45,6 +45,72 @@ function toInventory(statusText) {
   return toText(statusText) === "缺貨中" ? 0 : 200;
 }
 
+function parseLingdongActionsFromSheetRows(jsonData, sheetName) {
+  const rows = Array.isArray(jsonData) ? jsonData : [];
+  if (rows.length === 0) return [];
+
+  let headerRowIndex = -1;
+  let headerMap = {};
+
+  for (let r = 0; r < Math.min(rows.length, 20); r++) {
+    const row = rows[r] || [];
+    const map = {};
+    row.forEach((cell, idx) => {
+      const key = normalizeHeaderKey(cell);
+      if (key) map[key] = idx;
+    });
+    const hasAll = LINGDONG_REQUIRED_KEYS.every((k) => Object.prototype.hasOwnProperty.call(map, k));
+    if (hasAll) {
+      headerRowIndex = r;
+      headerMap = map;
+      break;
+    }
+  }
+
+  if (headerRowIndex === -1) {
+    const firstHeader = (rows[0] || []).map((x) => normalizeHeaderKey(x)).filter(Boolean);
+    throw new Error(`靈動總表欄位無法辨識，請確認欄位名稱固定。首列偵測到：${firstHeader.join(" / ")}`);
+  }
+
+  const dedupBySplitCode = new Map();
+  for (let r = headerRowIndex + 1; r < rows.length; r++) {
+    const row = rows[r] || [];
+    const getVal = (name) => row[headerMap[name]];
+
+    const splitCode = toText(getVal("分流"));
+    if (!splitCode) continue;
+
+    const modelVal = toText(getVal("型號")).toUpperCase() || splitCode;
+    const statusText = toText(getVal("狀態"));
+    const obj = {
+      splitCode,
+      brand: toText(getVal("品牌")),
+      category: toText(getVal("分類")),
+      model: modelVal,
+      mainModel: modelVal.split('-')[0],
+      name: toText(getVal("商品名稱")) || modelVal,
+      cost: toNumber(getVal("詢價含")),
+      marketPrice: toNumber(getVal("市價含")),
+      minPrice: toNumber(getVal("售價含")),
+      inventory: toInventory(statusText),
+      status: toStatus(statusText),
+      statusText,
+      isControlled: false,
+      internationalBarcode: toBarcode(getVal("國際條碼")),
+      barcode: toBarcode(getVal("國際條碼")),
+      cartonQty: parseInt(toNumber(getVal("箱入數")), 10) || 0,
+      bsmi: toText(getVal("BSMI")),
+      ncc: toText(getVal("NCC")),
+      productUrl: toText(getVal("商品對應網站")),
+      netSalesPermission: "",
+      sourceSheet: sheetName,
+    };
+    dedupBySplitCode.set(splitCode, { data: obj, model: modelVal, splitCode });
+  }
+
+  return Array.from(dedupBySplitCode.values());
+}
+
 /* 產品匯入 Excel 解析 */
 export function setupProductUpload() {
   const productUpload = document.getElementById("productUpload");
@@ -61,43 +127,10 @@ export function setupProductUpload() {
         const data = evt.target.result;
         const workbook = XLSX.read(data, { type: 'binary' });
         const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-        const objectRows = XLSX.utils.sheet_to_json(firstSheet, { defval: "" });
         const jsonData = XLSX.utils.sheet_to_json(firstSheet, { header: 1 }); 
 
-        if (activeCompanyKey === "lingdong" && objectRows.length > 0 && hasLingdongColumns(objectRows[0])) {
-          const dedupBySplitCode = new Map();
-          objectRows.forEach((row) => {
-            const splitCode = toText(row["分流"]);
-            if (!splitCode) return;
-            const modelVal = toText(row["型號"]).toUpperCase() || splitCode;
-            const statusText = toText(row["狀態"]);
-            const obj = {
-              splitCode,
-              brand: toText(row["品牌"]),
-              category: toText(row["分類"]),
-              model: modelVal,
-              mainModel: modelVal.split('-')[0],
-              name: toText(row["商品名稱"]) || modelVal,
-              cost: toNumber(row["詢價\n含"]),
-              marketPrice: toNumber(row["市價\n含"]),
-              minPrice: toNumber(row["售價\n含"]),
-              inventory: toInventory(statusText),
-              status: toStatus(statusText),
-              statusText,
-              isControlled: false,
-              internationalBarcode: toBarcode(row["國際條碼"]),
-              barcode: toBarcode(row["國際條碼"]),
-              cartonQty: parseInt(toNumber(row["箱入數"]), 10) || 0,
-              bsmi: toText(row["BSMI"]),
-              ncc: toText(row["NCC"]),
-              productUrl: toText(row["商品對應網站"]),
-              netSalesPermission: "",
-              sourceSheet: workbook.SheetNames[0],
-            };
-            dedupBySplitCode.set(splitCode, { data: obj, model: modelVal, splitCode });
-          });
-
-          const actions = Array.from(dedupBySplitCode.values());
+        if (activeCompanyKey === "lingdong") {
+          const actions = parseLingdongActionsFromSheetRows(jsonData, workbook.SheetNames[0]);
           const previewHeader = document.getElementById("previewHeader");
           const previewContent = document.getElementById("previewContent");
           const previewOverlay = document.getElementById("previewOverlay");

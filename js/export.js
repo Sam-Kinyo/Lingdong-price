@@ -7,7 +7,7 @@ import { state } from './state.js';
 import { fetchAsDataURL, getInventoryRangeLabel, calcQuotePrice, canViewTier } from './helpers.js';
 import { getDriveMainImage, getDriveNetImages } from './data.js';
 import { logQuoteAction } from './quote.js';
-import { activeCompany } from './company-config.js';
+import { activeCompany, activeCompanyKey } from './company-config.js';
 
 const PPT_EXPORT_MODES = {
     compat: {
@@ -25,6 +25,18 @@ const PPT_EXPORT_MODES = {
 };
 
 const PPT_LOGO_URL = activeCompany.ppt.logoUrl;
+
+function getExportPrefix() {
+    return activeCompanyKey === "lingdong" ? "lingdong" : (activeCompany.companyNameEn || "export");
+}
+
+function getDateTagYYYYMMDD() {
+    const d = new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${y}${m}${day}`;
+}
 
 function getPptExportMode(modeId = "compat") {
     return PPT_EXPORT_MODES[modeId] || PPT_EXPORT_MODES.compat;
@@ -277,9 +289,6 @@ export async function exportSelectedPPT(source = 'checked', modeId = 'compat') {
         batches.push(selectedItems.slice(i, i + CHUNK_SIZE));
     }
 
-    const salesName = activeCompany.ppt.salesName || activeCompany.companyNameZh;
-    const salesPhone = activeCompany.ppt.salesPhone || "";
-
     for (let i = 0; i < batches.length; i++) {
         btn.textContent = `生成中 (${i + 1}/${batches.length})...`;
 
@@ -302,8 +311,7 @@ export async function exportSelectedPPT(source = 'checked', modeId = 'compat') {
         }
         const buildMs = performance.now() - buildStartAt;
         
-        let filename = `${activeCompany.ppt.filePrefix || "商品推薦報價"}-@${salesName}`;
-        if (salesPhone) filename += `-@${salesPhone}`;
+        let filename = `${getExportPrefix()}_${getDateTagYYYYMMDD()}_${activeCompany.ppt.filePrefix || "商品推薦報價"}`;
         if (batches.length > 1) {
             filename += `_Part${i + 1}`;
         }
@@ -414,8 +422,7 @@ export function exportSelectedExcel() {
   const ws = XLSX.utils.aoa_to_sheet(rows);
   XLSX.utils.book_append_sheet(wb, ws, "報價單");
   
-  const fileTag = state.isGroupBuyUser ? "團購專用" : (qtySelect.value ? qtySelect.value+'個' : '搜尋結果');
-  XLSX.writeFile(wb, `KINYO_商品報價_${fileTag}_${new Date().toISOString().slice(0,10)}.xlsx`);
+  XLSX.writeFile(wb, `${getExportPrefix()}_${getDateTagYYYYMMDD()}_商品報價.xlsx`);
 }
 
 /* 大數據匯出 */
@@ -455,7 +462,7 @@ export async function exportQuoteHistory() {
         const wb = XLSX.utils.book_new();
         const ws = XLSX.utils.aoa_to_sheet(rows);
         XLSX.utils.book_append_sheet(wb, ws, "報價大數據");
-        XLSX.writeFile(wb, `KINYO_報價大數據_${new Date().toISOString().slice(0,10)}.xlsx`);
+        XLSX.writeFile(wb, `${getExportPrefix()}_${getDateTagYYYYMMDD()}_報價大數據.xlsx`);
 
         alert(`匯出成功！共下載 ${querySnapshot.size} 筆操作紀錄。`);
 
