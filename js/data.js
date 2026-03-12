@@ -209,8 +209,56 @@ export async function preloadProducts() {
       });
     }
 
-    if (isLocalDataMode() || activeCompanyKey === "lingdong") {
-      // Local mode: keep one row per splitCode (分流唯一鍵), do not merge by main model.
+    if (activeCompanyKey === "lingdong") {
+      // Lingdong: merge rows by exact product name so same item with different colors shows once.
+      const mergedByName = {};
+      rawList.forEach(item => {
+        if (item.status === 'inactive') return;
+        const key = String(item.name || item.mainModel || item.model || "").trim().toLowerCase();
+        if (!key) return;
+
+        const variantObj = {
+          model: item.model,
+          color: item.colorList || "單一款式",
+          inventory: item.inventory,
+          eta: item.eta,
+          splitCode: item.splitCode || ""
+        };
+
+        if (!mergedByName[key]) {
+          mergedByName[key] = {
+            ...item,
+            models: [item.model],
+            splitCodes: [item.splitCode || ""],
+            variants: [variantObj],
+            colorList: item.colorList || ""
+          };
+          return;
+        }
+
+        const target = mergedByName[key];
+        if (!target.models.includes(item.model)) target.models.push(item.model);
+        if (item.splitCode && !target.splitCodes.includes(item.splitCode)) target.splitCodes.push(item.splitCode);
+        target.variants.push(variantObj);
+
+        const existColors = String(target.colorList || "").split(" / ").filter(Boolean);
+        const newColors = String(item.colorList || "").split(" / ").filter(Boolean);
+        target.colorList = [...new Set([...existColors, ...newColors])].join(" / ");
+
+        if (item.imageUrl && !target.imageUrl) target.imageUrl = item.imageUrl;
+        if (parseInt(item.inventory || 0, 10) > parseInt(target.inventory || 0, 10)) {
+          target.inventory = item.inventory;
+        }
+      });
+
+      state.productCache = Object.values(mergedByName).map(p => {
+        return {
+          ...p,
+          searchKey: `${p.brand || ""} ${(p.splitCodes || []).join(" ")} ${p.mainModel || ""} ${(p.models || []).join(" ")} ${p.name || ""} ${p.category || ""} ${p.colorList || ""} ${p.barcode || ""}`.toLowerCase()
+        };
+      });
+    } else if (isLocalDataMode()) {
+      // Local mode: keep one row per source row.
       state.productCache = rawList
         .filter(item => item.status !== 'inactive')
         .map(item => {
