@@ -142,6 +142,12 @@ python tools/fetch_product_images.py --input "c:\Users\郭庭豪\Desktop\暫存\
 - 作用：先上傳圖片到 Firebase Storage，再更新 Firestore `Products/{splitCode}.imageUrl`
 - 前台 `system.html` 會優先顯示 `imageUrl`，所以會立即對應到商品圖片
 
+### 雙擊啟動（免記指令）
+- 入口檔：`run_image_sync.bat`（直接點兩下即可）
+- 內部會呼叫：`tools/run_image_sync.ps1`
+- 預設模式：`full-refresh`（等同 `--no-only-new`，會全部重新同步）
+- 若要改成只抓新增，打開 `tools/run_image_sync.ps1`，把 `$OnlyNew` 參數改成預設啟用即可。
+
 ### 輸出結果
 - 圖片資料夾：`downloaded_images\`
 - 報表：`download_report.csv`（含成功/略過/失敗、圖片網址、錯誤原因）
