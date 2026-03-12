@@ -36,6 +36,8 @@
       ".github/**",
       "backend/**",
       "tools/**",
+      "downloaded_images/**",
+      "download_report.csv",
       "**/*.md",
       "**/__pycache__/**",
       "**/*.pyc"
