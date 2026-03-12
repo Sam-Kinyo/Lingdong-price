@@ -68,7 +68,7 @@ function detectCompanyKey() {
   const fromQuery = normalizeCompanyKey(new URLSearchParams(window.location.search).get("company"));
   if (fromQuery && COMPANY_CONFIGS[fromQuery]) return fromQuery;
 
-  return "kinyo";
+  return "lingdong";
 }
 
 const currentCompanyKey = detectCompanyKey();
