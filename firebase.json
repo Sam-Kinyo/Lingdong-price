@@ -2,6 +2,13 @@
   "hosting": {
     "site": "lingdong-price",
     "public": ".",
+    "redirects": [
+      {
+        "source": "/",
+        "destination": "/system.html",
+        "type": 302
+      }
+    ],
     "ignore": [
       "firebase.json",
       ".firebaserc",
