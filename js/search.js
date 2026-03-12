@@ -55,7 +55,7 @@ export function updateUserDisplay(status) {
         badgeClass = "badge-vip";
         userInfoSpan.textContent = `${state.currentUserVipConfig.name} (VIP)`;
     } else {
-        userInfoSpan.textContent = `${state.currentUserEmail.replace(/@.*/, "")}`;
+        userInfoSpan.textContent = `${state.currentUserEmail.replace(/@.*/, "")} (L${state.userLevel})`;
     }
     
     userInfoSpan.className = `user-badge ${badgeClass}`;

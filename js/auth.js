@@ -16,9 +16,10 @@ function isLocalDataMode() {
 
 function isLingdongAdmin(email) {
   const e = String(email || "").trim().toLowerCase();
-  const admins = new Set([
-    "kuo.tinghow@gmail.com",
-  ]);
+  if (!e) return false;
+  const localPart = e.split("@")[0];
+  if (localPart === "kuo.tinghow") return true;
+  const admins = new Set(["kuo.tinghow@gmail.com", "kuo.tinghow@kinyo.com"]);
   return admins.has(e);
 }
 
@@ -53,7 +54,7 @@ export function setupLoginButton() {
 
   if (!doLoginBtn) return;
 
-  doLoginBtn.onclick = async () => {
+  const triggerLogin = async () => {
     let email = loginEmail.value.trim();
     const password = loginPassword.value.trim();
     
@@ -89,6 +90,17 @@ export function setupLoginButton() {
       doLoginBtn.textContent = "登入";
     }
   };
+
+  doLoginBtn.onclick = triggerLogin;
+
+  const onEnterKey = (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      triggerLogin();
+    }
+  };
+  if (loginEmail) loginEmail.addEventListener("keydown", onEnterKey);
+  if (loginPassword) loginPassword.addEventListener("keydown", onEnterKey);
 }
 
 /* 登出按鈕 */
@@ -99,7 +111,9 @@ export function setupLogoutButton() {
   logoutBtn.onclick = () => {
     if(confirm("確定要登出嗎？")) {
         signOut(auth).then(() => {
-            window.location.href = "index.html";
+            // 保持在當前頁，onAuthStateChanged 會自動顯示登入覆蓋層
+            const loginOverlay = document.getElementById("loginOverlay");
+            if (loginOverlay) loginOverlay.style.display = "flex";
         }).catch((error) => {
             console.error("登出錯誤:", error);
             alert("登出發生錯誤，請重新整理網頁");
@@ -157,6 +171,12 @@ export function setupAuthListener() {
     state.currentUserVipConfig = null;
     state.isGroupBuyUser = false;
 
+    // 先套用管理員 fallback，避免 Firestore 文件 key 差異造成權限遺失
+    if (isLingdongAdmin(state.currentUserEmail)) {
+      state.originalUserLevel = 4;
+      state.userLevel = 4;
+    }
+
     try {
         const emailRaw = state.currentUserEmail;
         const emailLower = emailRaw.toLowerCase();
@@ -195,7 +215,7 @@ export function setupAuthListener() {
     }
 
     // Lingdong 正式站 fallback：admin 帳號直接給 Level 4，避免文件 key 大小寫造成權限遺失
-    if (activeCompanyKey === "lingdong" && isLingdongAdmin(state.currentUserEmail)) {
+    if (isLingdongAdmin(state.currentUserEmail)) {
       state.originalUserLevel = Math.max(state.originalUserLevel, 4);
       state.userLevel = state.originalUserLevel;
     }
