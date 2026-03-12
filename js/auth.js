@@ -1,7 +1,7 @@
 /* =======================================================
    認證模組 (Auth)
 ======================================================= */
-import { doc, getDoc } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
+import { doc, getDoc, getDocFromServer } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
 import { onAuthStateChanged, signOut, signInWithEmailAndPassword, setPersistence, browserLocalPersistence } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
 import { db, auth } from './firebase-init.js';
 import { state } from './state.js';
@@ -11,15 +11,6 @@ import { preloadDriveModelData, preloadProducts } from './data.js';
 
 function isLocalDataMode() {
   return window.__USE_LOCAL_DB__ === true || new URLSearchParams(window.location.search).get("local") === "1";
-}
-
-function isLingdongAdmin(email) {
-  const e = String(email || "").trim().toLowerCase();
-  if (!e) return false;
-  const localPart = e.split("@")[0];
-  if (localPart === "kuo.tinghow") return true;
-  const admins = new Set(["kuo.tinghow@gmail.com", "kuo.tinghow@kinyo.com"]);
-  return admins.has(e);
 }
 
 function toLevel(v) {
@@ -35,7 +26,12 @@ async function loadUserPermissionData(user) {
   const candidateIds = Array.from(new Set([emailLower, emailRaw, uid])).filter(Boolean);
 
   for (const id of candidateIds) {
-    const userDoc = await getDoc(doc(db, "Users", id));
+    let userDoc;
+    try {
+      userDoc = await getDocFromServer(doc(db, "Users", id));
+    } catch {
+      userDoc = await getDoc(doc(db, "Users", id));
+    }
     if (userDoc.exists()) {
       return userDoc.data() || null;
     }
@@ -207,12 +203,6 @@ export function setupAuthListener() {
     state.currentUserVipConfig = null;
     state.isGroupBuyUser = false;
 
-    // 管理員 fallback：若 Users 沒建檔仍可保底進入管理權限
-    if (isLingdongAdmin(state.currentUserEmail)) {
-      state.originalUserLevel = 4;
-      state.userLevel = 4;
-    }
-
     try {
         const userData = await loadUserPermissionData(user);
 
@@ -229,15 +219,13 @@ export function setupAuthListener() {
             };
           }
         } else {
-          // 無 Users 檔案時保留 admin fallback，其他帳號為 0
-          state.originalUserLevel = Math.max(state.originalUserLevel, 0);
-          state.userLevel = state.originalUserLevel;
+          state.originalUserLevel = 0;
+          state.userLevel = 0;
         }
     } catch (e) {
         console.error("Auth Error:", e);
-        // 讀取失敗時只保留 admin fallback，不再強制全員 L4
-        state.originalUserLevel = Math.max(state.originalUserLevel, 0);
-        state.userLevel = state.originalUserLevel;
+        state.originalUserLevel = 0;
+        state.userLevel = 0;
     }
 
     if (state.currentUserEmail.toLowerCase() === 'show@kinyo.com') {
