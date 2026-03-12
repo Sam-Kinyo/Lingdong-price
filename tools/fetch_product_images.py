@@ -268,10 +268,10 @@ def update_firestore_image_urls(rows: list[dict[str, str]], args: argparse.Names
     db, fs_admin = init_firestore(args.firebase_cred)
     ok = 0
     fail = 0
+    target_rows = [r for r in rows if r.get("status") == "ok"]
+    total_targets = len(target_rows)
 
-    for row in rows:
-        if row.get("status") != "ok":
-            continue
+    for idx, row in enumerate(target_rows, start=1):
         doc_id = to_text(row.get("splitCode") or row.get("model"))
         image_url = to_text(row.get("imageUrl"))
         if not doc_id or not image_url:
@@ -288,6 +288,8 @@ def update_firestore_image_urls(rows: list[dict[str, str]], args: argparse.Names
             try:
                 db.collection(args.firebase_collection).document(doc_id).set(payload, merge=True)
                 ok += 1
+                if args.progress:
+                    print(f"[FIRESTORE {idx}/{total_targets}] ok {doc_id}")
                 last_err = ""
                 break
             except Exception as ex:
@@ -299,6 +301,8 @@ def update_firestore_image_urls(rows: list[dict[str, str]], args: argparse.Names
 
         if last_err:
             fail += 1
+            if args.progress:
+                print(f"[FIRESTORE {idx}/{total_targets}] failed {doc_id} -> {last_err}")
 
     return ok, fail
 
@@ -455,6 +459,12 @@ def main() -> None:
     parser.add_argument("--firestore-image-field", default="imageUrl", help="Firestore 圖片欄位名稱")
     parser.add_argument("--firestore-retries", type=int, default=3, help="Firestore 更新重試次數")
     parser.add_argument("--firestore-retry-delay", type=float, default=1.0, help="Firestore 重試基礎等待秒數")
+    parser.add_argument(
+        "--progress",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="是否輸出即時進度（預設 true）",
+    )
     args = parser.parse_args()
 
     if not args.input.exists():
@@ -478,10 +488,18 @@ def main() -> None:
     skipped_count = 0
 
     rows = [row.to_dict() for _, row in df.iterrows()]
+    total_rows = len(rows)
     host_lock = threading.Lock()
     host_next_allowed: dict[str, float] = {}
 
     max_workers = max(1, min(int(args.workers), 16))
+    if args.progress:
+        print(
+            f"[START] total={total_rows}, workers={max_workers}, "
+            f"only_new={args.only_new}, save_local={args.save_local}, update_firestore={args.update_firestore}"
+        )
+
+    completed = 0
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         futures = [
             executor.submit(process_one_row, idx, row_data, args, host_lock, host_next_allowed)
@@ -490,6 +508,7 @@ def main() -> None:
         for future in as_completed(futures):
             row_result = future.result()
             report_rows.append(row_result)
+            completed += 1
             status = row_result.get("status", "")
             if status == "ok":
                 ok_count += 1
@@ -497,6 +516,13 @@ def main() -> None:
                 skipped_count += 1
             else:
                 fail_count += 1
+            if args.progress:
+                model = to_text(row_result.get("model"))
+                split_code = to_text(row_result.get("splitCode"))
+                image_url = to_text(row_result.get("imageUrl"))
+                message = to_text(row_result.get("message"))
+                extra = image_url or message
+                print(f"[{completed}/{total_rows}] {status} model={model} split={split_code} {extra}".strip())
 
     report_rows.sort(key=lambda x: int(x["row"]))
 

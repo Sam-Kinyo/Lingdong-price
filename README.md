@@ -115,6 +115,8 @@ pip install requests beautifulsoup4 pandas openpyxl
 ```powershell
 python tools/fetch_product_images.py --input "c:\Users\郭庭豪\Desktop\暫存\LingDong商品總表.xlsx"
 ```
+- 執行時會顯示即時進度，例如：`[15/103] ok model=...`
+- 如需安靜模式可加：`--no-progress`
 
 ### 進階模式（新增）
 - 只抓新增（預設開啟，已下載會略過）：
