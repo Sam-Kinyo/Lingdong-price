@@ -3,13 +3,15 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import mimetypes
 import re
 import threading
 import time
+import uuid
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any, Iterable
-from urllib.parse import urljoin, urlparse
+from urllib.parse import quote, urljoin, urlparse
 
 import pandas as pd
 import requests
@@ -19,6 +21,7 @@ from bs4 import BeautifulSoup
 DEFAULT_INPUT_XLSX = Path(r"c:\Users\郭庭豪\Desktop\暫存\LingDong商品總表.xlsx")
 DEFAULT_OUTPUT_DIR = Path(r"d:\LINGDONG_PROJECT\lingdong-price\downloaded_images")
 DEFAULT_REPORT_CSV = Path(r"d:\LINGDONG_PROJECT\lingdong-price\download_report.csv")
+DEFAULT_FIREBASE_BUCKET = "lingdong-price.firebasestorage.app"
 
 
 def to_text(value: object) -> str:
@@ -243,29 +246,55 @@ def create_session() -> requests.Session:
     return session
 
 
-def init_firestore(cred_path: str):
+def init_firebase_clients(cred_path: str, bucket_name: str):
     try:
         import firebase_admin
-        from firebase_admin import credentials, firestore
+        from firebase_admin import credentials, firestore, storage
     except Exception as ex:
         raise RuntimeError("firebase-admin 未安裝，請先執行: pip install firebase-admin") from ex
 
+    options = {"storageBucket": bucket_name}
     if cred_path:
         cred_file = Path(cred_path)
         if not cred_file.exists():
             raise FileNotFoundError(f"找不到 Firebase 憑證檔: {cred_file}")
         cred = credentials.Certificate(str(cred_file))
         if not firebase_admin._apps:
-            firebase_admin.initialize_app(cred)
+            firebase_admin.initialize_app(cred, options)
     else:
         if not firebase_admin._apps:
-            firebase_admin.initialize_app()
+            firebase_admin.initialize_app(options=options)
 
-    return firestore.client(), firestore
+    db = firestore.client()
+    bucket = storage.bucket(bucket_name)
+    return db, firestore, bucket
+
+
+def upload_image_to_storage(
+    bucket,
+    object_name: str,
+    binary: bytes,
+    content_type: str,
+    make_public: bool = False,
+) -> str:
+    blob = bucket.blob(object_name)
+    final_content_type = content_type or mimetypes.guess_type(object_name)[0] or "application/octet-stream"
+    blob.cache_control = "public, max-age=31536000"
+    blob.upload_from_string(binary, content_type=final_content_type)
+
+    if make_public:
+        blob.make_public()
+        return blob.public_url
+
+    token = str(uuid.uuid4())
+    blob.metadata = {"firebaseStorageDownloadTokens": token}
+    blob.patch()
+    encoded_name = quote(object_name, safe="")
+    return f"https://firebasestorage.googleapis.com/v0/b/{bucket.name}/o/{encoded_name}?alt=media&token={token}"
 
 
 def update_firestore_image_urls(rows: list[dict[str, str]], args: argparse.Namespace) -> tuple[int, int]:
-    db, fs_admin = init_firestore(args.firebase_cred)
+    db, fs_admin, _ = init_firebase_clients(args.firebase_cred, args.firebase_bucket)
     ok = 0
     fail = 0
     target_rows = [r for r in rows if r.get("status") == "ok"]
@@ -313,6 +342,7 @@ def process_one_row(
     args: argparse.Namespace,
     lock: threading.Lock,
     host_next_allowed: dict[str, float],
+    bucket,
 ) -> dict[str, str]:
     model = sanitize_filename(to_text(row_data.get(args.model_col)) or f"row{row_index+1}")
     split_code = sanitize_filename(to_text(row_data.get(args.split_col, "")))
@@ -379,11 +409,27 @@ def process_one_row(
                     min_host_interval=args.min_host_interval,
                 )
                 out_file = None
+                final_image_url = image_url
+                binary = img_resp.content
+                if not binary:
+                    raise ValueError("empty image content")
+                content_type = to_text(img_resp.headers.get("Content-Type"))
+
+                if args.upload_to_storage:
+                    ext = guess_extension(image_url, content_type)
+                    safe_model = re.sub(r"[^a-zA-Z0-9_.-]+", "_", model).strip("._") or f"row{row_index+2}"
+                    safe_split = re.sub(r"[^a-zA-Z0-9_.-]+", "_", split_code).strip("._") if split_code else ""
+                    fname = f"{safe_model}_{safe_split}{ext}" if safe_split else f"{safe_model}{ext}"
+                    object_name = f"{args.storage_prefix.strip('/')}/{fname}" if args.storage_prefix else fname
+                    final_image_url = upload_image_to_storage(
+                        bucket=bucket,
+                        object_name=object_name,
+                        binary=binary,
+                        content_type=content_type,
+                        make_public=args.storage_make_public,
+                    )
+
                 if args.save_local:
-                    binary = img_resp.content
-                    if not binary:
-                        raise ValueError("empty image content")
-                    content_type = to_text(img_resp.headers.get("Content-Type"))
                     ext = guess_extension(image_url, content_type)
                     out_file = build_output_file(args.output_dir, base_name, ext, row_index + 2, args.overwrite)
                     out_file.write_bytes(binary)
@@ -392,7 +438,7 @@ def process_one_row(
                     "model": model,
                     "splitCode": split_code,
                     "pageUrl": page_url,
-                    "imageUrl": image_url,
+                    "imageUrl": final_image_url,
                     "status": "ok",
                     "message": "",
                     "savedPath": str(out_file) if out_file else "",
@@ -455,10 +501,24 @@ def main() -> None:
         help="抓圖成功後是否直接更新 Firestore（寫入 imageUrl）",
     )
     parser.add_argument("--firebase-cred", default="", help="Firebase service account JSON 路徑")
+    parser.add_argument("--firebase-bucket", default=DEFAULT_FIREBASE_BUCKET, help="Firebase Storage bucket 名稱")
     parser.add_argument("--firebase-collection", default="Products", help="Firestore 集合名稱")
     parser.add_argument("--firestore-image-field", default="imageUrl", help="Firestore 圖片欄位名稱")
     parser.add_argument("--firestore-retries", type=int, default=3, help="Firestore 更新重試次數")
     parser.add_argument("--firestore-retry-delay", type=float, default=1.0, help="Firestore 重試基礎等待秒數")
+    parser.add_argument(
+        "--upload-to-storage",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help="是否把抓到的圖片上傳到 Firebase Storage，並回填 Storage URL",
+    )
+    parser.add_argument("--storage-prefix", default="product-images", help="Storage 路徑前綴")
+    parser.add_argument(
+        "--storage-make-public",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help="上傳後是否直接設為 public（預設使用 download token URL）",
+    )
     parser.add_argument(
         "--progress",
         action=argparse.BooleanOptionalAction,
@@ -491,18 +551,23 @@ def main() -> None:
     total_rows = len(rows)
     host_lock = threading.Lock()
     host_next_allowed: dict[str, float] = {}
+    bucket = None
+
+    if args.upload_to_storage or args.update_firestore:
+        _, _, bucket = init_firebase_clients(args.firebase_cred, args.firebase_bucket)
 
     max_workers = max(1, min(int(args.workers), 16))
     if args.progress:
         print(
             f"[START] total={total_rows}, workers={max_workers}, "
-            f"only_new={args.only_new}, save_local={args.save_local}, update_firestore={args.update_firestore}"
+            f"only_new={args.only_new}, save_local={args.save_local}, "
+            f"upload_to_storage={args.upload_to_storage}, update_firestore={args.update_firestore}"
         )
 
     completed = 0
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         futures = [
-            executor.submit(process_one_row, idx, row_data, args, host_lock, host_next_allowed)
+            executor.submit(process_one_row, idx, row_data, args, host_lock, host_next_allowed, bucket)
             for idx, row_data in enumerate(rows)
         ]
         for future in as_completed(futures):
