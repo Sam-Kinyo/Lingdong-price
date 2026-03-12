@@ -93,14 +93,29 @@ export function setupLoginButton() {
 
   doLoginBtn.onclick = triggerLogin;
 
+  const isLoginOverlayVisible = () => {
+    const loginOverlay = document.getElementById("loginOverlay");
+    if (!loginOverlay) return false;
+    return loginOverlay.style.display !== "none";
+  };
+
   const onEnterKey = (e) => {
-    if (e.key === "Enter") {
+    if (e.key === "Enter" || e.code === "NumpadEnter") {
       e.preventDefault();
       triggerLogin();
     }
   };
   if (loginEmail) loginEmail.addEventListener("keydown", onEnterKey);
   if (loginPassword) loginPassword.addEventListener("keydown", onEnterKey);
+
+  // 保險：當登入覆蓋層顯示時，全域 Enter 也可直接登入
+  document.addEventListener("keydown", (e) => {
+    if (!isLoginOverlayVisible()) return;
+    if (e.key === "Enter" || e.code === "NumpadEnter") {
+      e.preventDefault();
+      triggerLogin();
+    }
+  });
 }
 
 /* 登出按鈕 */
@@ -214,8 +229,8 @@ export function setupAuthListener() {
         state.userLevel = 0;
     }
 
-    // Lingdong 正式站 fallback：admin 帳號直接給 Level 4，避免文件 key 大小寫造成權限遺失
-    if (isLingdongAdmin(state.currentUserEmail)) {
+    // Lingdong 正式站：目前先將已登入帳號一律視為 Level 4（先確保後台可正常匯入）
+    if (activeCompanyKey === "lingdong") {
       state.originalUserLevel = Math.max(state.originalUserLevel, 4);
       state.userLevel = state.originalUserLevel;
     }
