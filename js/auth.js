@@ -8,9 +8,18 @@ import { state } from './state.js';
 import { setupQtySelectByLevel } from './search.js';
 import { updateUserDisplay } from './search.js';
 import { preloadDriveModelData, preloadProducts } from './data.js';
+import { activeCompanyKey } from './company-config.js';
 
 function isLocalDataMode() {
   return window.__USE_LOCAL_DB__ === true || new URLSearchParams(window.location.search).get("local") === "1";
+}
+
+function isLingdongAdmin(email) {
+  const e = String(email || "").trim().toLowerCase();
+  const admins = new Set([
+    "kuo.tinghow@gmail.com",
+  ]);
+  return admins.has(e);
 }
 
 /* 權限更新 */
@@ -142,36 +151,53 @@ export function setupAuthListener() {
     
     if(loginOverlay) loginOverlay.style.display = "none";
 
-    state.currentUserEmail = user.email || "";
+    state.currentUserEmail = (user.email || "").trim();
     state.userLevel = 0; 
     state.originalUserLevel = 0;
     state.currentUserVipConfig = null;
     state.isGroupBuyUser = false;
 
     try {
-        const userDoc = await getDoc(doc(db, "Users", state.currentUserEmail.toLowerCase()));
-        if (userDoc.exists()) {
-            const userData = userDoc.data();
-            state.originalUserLevel = userData.level ?? 0;
-            state.userLevel = state.originalUserLevel;
-            if (userData.groupBuy === true) {
-                state.isGroupBuyUser = true;
-            }
-            
-            if (userData.vipColumn) {
-                state.currentUserVipConfig = {
-                    column: userData.vipColumn,
-                    name: userData.vipName || 'VIP客戶'
-                };
-            }
+        const emailRaw = state.currentUserEmail;
+        const emailLower = emailRaw.toLowerCase();
+        const candidateIds = Array.from(new Set([emailLower, emailRaw]));
+
+        let userData = null;
+        for (const id of candidateIds) {
+          if (!id) continue;
+          const userDoc = await getDoc(doc(db, "Users", id));
+          if (userDoc.exists()) {
+            userData = userDoc.data();
+            break;
+          }
+        }
+
+        if (userData) {
+          state.originalUserLevel = userData.level ?? 0;
+          state.userLevel = state.originalUserLevel;
+          if (userData.groupBuy === true) {
+            state.isGroupBuyUser = true;
+          }
+          if (userData.vipColumn) {
+            state.currentUserVipConfig = {
+              column: userData.vipColumn,
+              name: userData.vipName || 'VIP客戶'
+            };
+          }
         } else {
-            state.originalUserLevel = 0;
-            state.userLevel = 0;
+          state.originalUserLevel = 0;
+          state.userLevel = 0;
         }
     } catch (e) {
         console.error("Auth Error:", e);
         state.originalUserLevel = 0;
         state.userLevel = 0;
+    }
+
+    // Lingdong 正式站 fallback：admin 帳號直接給 Level 4，避免文件 key 大小寫造成權限遺失
+    if (activeCompanyKey === "lingdong" && isLingdongAdmin(state.currentUserEmail)) {
+      state.originalUserLevel = Math.max(state.originalUserLevel, 4);
+      state.userLevel = state.originalUserLevel;
     }
 
     if (state.currentUserEmail.toLowerCase() === 'show@kinyo.com') {
