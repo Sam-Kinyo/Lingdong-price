@@ -28,17 +28,25 @@ export function updatePermissions() {
     const importProductBtn = document.getElementById("importProductBtn");
     const exportHistoryBtn = document.getElementById("exportHistoryBtn");
     const stockFilter = document.getElementById("stockFilter");
+    const setHotBtn = document.getElementById("setHotBtn");
+
+    // Lingdong 專案：先固定開啟管理功能，確保可匯入總表
+    if (activeCompanyKey === "lingdong") {
+        if (importProductBtn) importProductBtn.style.display = 'inline-block';
+        if (exportHistoryBtn) exportHistoryBtn.style.display = 'inline-block';
+        if (setHotBtn) setHotBtn.style.display = 'inline-block';
+        if (stockFilter) stockFilter.style.display = 'none';
+        return;
+    }
 
     if (state.userLevel >= 4) {
         if(importProductBtn) importProductBtn.style.display = 'inline-block'; 
         if(exportHistoryBtn) exportHistoryBtn.style.display = 'inline-block';
-        const btn = document.getElementById("setHotBtn");
-        if(btn) btn.style.display = 'inline-block'; 
+        if(setHotBtn) setHotBtn.style.display = 'inline-block'; 
     } else {
         if(importProductBtn) importProductBtn.style.display = 'none'; 
         if(exportHistoryBtn) exportHistoryBtn.style.display = 'none';
-        const btn = document.getElementById("setHotBtn");
-        if(btn) btn.style.display = 'none';
+        if(setHotBtn) setHotBtn.style.display = 'none';
     }
 
     // 需求：庫存篩選暫時隱藏
@@ -107,6 +115,8 @@ export function setupLoginButton() {
   };
   if (loginEmail) loginEmail.addEventListener("keydown", onEnterKey);
   if (loginPassword) loginPassword.addEventListener("keydown", onEnterKey);
+  if (loginEmail) loginEmail.addEventListener("keyup", onEnterKey);
+  if (loginPassword) loginPassword.addEventListener("keyup", onEnterKey);
 
   // 保險：當登入覆蓋層顯示時，全域 Enter 也可直接登入
   document.addEventListener("keydown", (e) => {
