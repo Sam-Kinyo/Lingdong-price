@@ -92,6 +92,11 @@ python -m http.server 5600
 - `http://localhost:5600/system.html`
 - 或 `http://localhost:5600/brands/lingdong/system.html`
 
+## 已部署環境
+- GitHub Repo: `https://github.com/Sam-Kinyo/Lingdong-price`
+- Firebase Project: `lingdong-price`
+- Hosting URL: `https://lingdong-price.web.app`
+
 ## Excel 資料來源
 - 來源檔：`c:\Users\郭庭豪\Desktop\暫存\LingDong商品總表.xlsx`
 - 轉檔後資料：`products_local.json`
@@ -114,6 +119,14 @@ python tools/excel_to_products_local.py
 - 目前不做真實庫存，僅依狀態給概略值：
   - `缺貨中` -> `inventory = 0`
   - 其他可顯示狀態 -> `inventory = 200`（暫定值）
+
+## Firebase Auth（Email/Password）
+1. 至 Firebase Console -> Authentication -> Sign-in method 啟用 `Email/Password`
+2. 新增使用者（Authentication -> Users）
+3. 之後若要切換到 Firebase 正式模式，將 `system.html` 內：
+   - `window.__USE_LOCAL_DB__ = true;`
+   改為
+   - `window.__USE_LOCAL_DB__ = false;`
 
 ## 已知架構特性
 

@@ -46,9 +46,14 @@ const COMPANY_CONFIGS = {
       salesPhone: "",
       filePrefix: "Lingdong-商品推薦報價"
     },
-    // TODO: 請替換成靈動數碼自己的 Firebase 專案設定
-    // 目前先沿用 kinyo，方便你先本機測流程
-    firebase: {}
+    firebase: {
+      apiKey: "AIzaSyAoL7mdjr-A9mjZAAvgYV2qeonLPHHuNyw",
+      authDomain: "lingdong-price.firebaseapp.com",
+      projectId: "lingdong-price",
+      storageBucket: "lingdong-price.firebasestorage.app",
+      messagingSenderId: "1024909517978",
+      appId: "1:1024909517978:web:4fa6825ad83c8730c9ab23"
+    }
   }
 };
 
