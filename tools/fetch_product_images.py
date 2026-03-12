@@ -4,9 +4,11 @@ import argparse
 import csv
 import json
 import re
+import threading
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
-from typing import Iterable
+from typing import Any, Iterable
 from urllib.parse import urljoin, urlparse
 
 import pandas as pd
@@ -52,6 +54,18 @@ def unique_keep_order(items: Iterable[str]) -> list[str]:
             seen.add(item)
             result.append(item)
     return result
+
+
+def is_valid_image_url(src: str) -> bool:
+    src_low = to_text(src).lower()
+    if not src_low:
+        return False
+    invalid_keywords = ("logo", "icon", "avatar", "placeholder", "spinner", "loading")
+    if any(word in src_low for word in invalid_keywords):
+        return False
+    if src_low.startswith("data:") or src_low.endswith(".svg"):
+        return False
+    return True
 
 
 def extract_image_candidates(page_url: str, html: str, img_selector: str | None = None) -> list[str]:
@@ -117,16 +131,7 @@ def extract_image_candidates(page_url: str, html: str, img_selector: str | None 
             candidates.append(urljoin(page_url, src))
 
     # 排除 data URI / SVG icon / 空白
-    cleaned: list[str] = []
-    for c in candidates:
-        if not c:
-            continue
-        if c.startswith("data:"):
-            continue
-        low = c.lower()
-        if low.endswith(".svg"):
-            continue
-        cleaned.append(c)
+    cleaned = [c for c in candidates if is_valid_image_url(c)]
 
     return unique_keep_order(cleaned)
 
@@ -159,6 +164,194 @@ def download_binary(session: requests.Session, url: str, timeout: int) -> tuple[
     return data, content_type
 
 
+def throttle_by_host(url: str, lock: threading.Lock, host_next_allowed: dict[str, float], min_host_interval: float) -> None:
+    if min_host_interval <= 0:
+        return
+    host = urlparse(url).netloc.lower() or "__default__"
+    while True:
+        with lock:
+            now = time.time()
+            next_allowed = host_next_allowed.get(host, 0.0)
+            if now >= next_allowed:
+                host_next_allowed[host] = now + min_host_interval
+                return
+            wait_s = max(0.0, next_allowed - now)
+        time.sleep(min(wait_s, 0.3))
+
+
+def get_with_retry(
+    session: requests.Session,
+    url: str,
+    timeout: int,
+    max_retries: int,
+    retry_delay: float,
+    lock: threading.Lock,
+    host_next_allowed: dict[str, float],
+    min_host_interval: float,
+) -> requests.Response:
+    last_err: Exception | None = None
+    for attempt in range(max_retries + 1):
+        try:
+            throttle_by_host(url, lock, host_next_allowed, min_host_interval)
+            resp = session.get(url, timeout=timeout)
+            status = int(resp.status_code)
+            if status in (429, 500, 502, 503, 504):
+                retry_after = to_text(resp.headers.get("Retry-After"))
+                wait_s = float(retry_after) if retry_after.isdigit() else retry_delay * (2 ** attempt)
+                time.sleep(max(0.3, wait_s))
+                last_err = RuntimeError(f"HTTP {status}")
+                continue
+            resp.raise_for_status()
+            return resp
+        except Exception as ex:
+            last_err = ex
+            if attempt < max_retries:
+                time.sleep(max(0.3, retry_delay * (2 ** attempt)))
+            else:
+                break
+
+    raise RuntimeError(f"request failed: {url} -> {last_err}")
+
+
+def find_existing_image(output_dir: Path, base: str) -> Path | None:
+    patterns = [f"{base}.jpg", f"{base}.jpeg", f"{base}.png", f"{base}.webp", f"{base}.gif"]
+    for name in patterns:
+        p = output_dir / name
+        if p.exists():
+            return p
+    return None
+
+
+def build_output_file(output_dir: Path, base: str, ext: str, row_index: int, overwrite: bool) -> Path:
+    out_file = output_dir / f"{base}{ext}"
+    if overwrite or not out_file.exists():
+        return out_file
+    return output_dir / f"{base}_r{row_index}{ext}"
+
+
+def create_session() -> requests.Session:
+    session = requests.Session()
+    session.headers.update(
+        {
+            "User-Agent": (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/124.0.0.0 Safari/537.36"
+            )
+        }
+    )
+    return session
+
+
+def process_one_row(
+    row_index: int,
+    row_data: dict[str, Any],
+    args: argparse.Namespace,
+    lock: threading.Lock,
+    host_next_allowed: dict[str, float],
+) -> dict[str, str]:
+    model = sanitize_filename(to_text(row_data.get(args.model_col)) or f"row{row_index+1}")
+    split_code = sanitize_filename(to_text(row_data.get(args.split_col, "")))
+    page_url = normalize_url(to_text(row_data.get(args.url_col)))
+    base_name = f"{model}_{split_code}" if split_code else model
+
+    if not page_url:
+        return {
+            "row": str(row_index + 2),
+            "model": model,
+            "splitCode": split_code,
+            "pageUrl": "",
+            "imageUrl": "",
+            "status": "failed",
+            "message": "empty product url",
+            "savedPath": "",
+        }
+
+    if args.only_new and not args.overwrite:
+        existing = find_existing_image(args.output_dir, base_name)
+        if existing:
+            return {
+                "row": str(row_index + 2),
+                "model": model,
+                "splitCode": split_code,
+                "pageUrl": page_url,
+                "imageUrl": "",
+                "status": "skipped_existing",
+                "message": "already downloaded",
+                "savedPath": str(existing),
+            }
+
+    session = create_session()
+    try:
+        page_resp = get_with_retry(
+            session=session,
+            url=page_url,
+            timeout=args.timeout,
+            max_retries=args.retries,
+            retry_delay=args.retry_delay,
+            lock=lock,
+            host_next_allowed=host_next_allowed,
+            min_host_interval=args.min_host_interval,
+        )
+        candidates = extract_image_candidates(
+            page_url=page_url,
+            html=page_resp.text,
+            img_selector=to_text(args.img_selector) or None,
+        )
+        if not candidates:
+            raise ValueError("no image candidate found from page")
+
+        last_err = ""
+        for image_url in candidates[: args.max_candidates]:
+            try:
+                img_resp = get_with_retry(
+                    session=session,
+                    url=image_url,
+                    timeout=args.timeout,
+                    max_retries=args.retries,
+                    retry_delay=args.retry_delay,
+                    lock=lock,
+                    host_next_allowed=host_next_allowed,
+                    min_host_interval=args.min_host_interval,
+                )
+                binary = img_resp.content
+                if not binary:
+                    raise ValueError("empty image content")
+                content_type = to_text(img_resp.headers.get("Content-Type"))
+                ext = guess_extension(image_url, content_type)
+                out_file = build_output_file(args.output_dir, base_name, ext, row_index + 2, args.overwrite)
+                out_file.write_bytes(binary)
+                return {
+                    "row": str(row_index + 2),
+                    "model": model,
+                    "splitCode": split_code,
+                    "pageUrl": page_url,
+                    "imageUrl": image_url,
+                    "status": "ok",
+                    "message": "",
+                    "savedPath": str(out_file),
+                }
+            except Exception as ex:
+                last_err = str(ex)
+
+        raise ValueError(f"all candidates failed: {last_err or 'unknown error'}")
+    except Exception as ex:
+        return {
+            "row": str(row_index + 2),
+            "model": model,
+            "splitCode": split_code,
+            "pageUrl": page_url,
+            "imageUrl": "",
+            "status": "failed",
+            "message": str(ex),
+            "savedPath": "",
+        }
+    finally:
+        session.close()
+        if args.delay > 0:
+            time.sleep(args.delay)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="依 Excel 商品網址爬取對應商品圖片")
     parser.add_argument("--input", type=Path, default=DEFAULT_INPUT_XLSX, help="Excel 路徑")
@@ -168,10 +361,21 @@ def main() -> None:
     parser.add_argument("--model-col", default="型號", help="型號欄名")
     parser.add_argument("--url-col", default="商品對應網站", help="網址欄名")
     parser.add_argument("--split-col", default="分流", help="分流欄名")
-    parser.add_argument("--delay", type=float, default=0.2, help="每筆抓取間隔秒數")
+    parser.add_argument("--delay", type=float, default=0.15, help="每筆抓取完成後等待秒數")
     parser.add_argument("--timeout", type=int, default=20, help="HTTP timeout 秒數")
     parser.add_argument("--overwrite", action="store_true", help="是否覆蓋既有檔案")
     parser.add_argument("--img-selector", default="", help="指定 CSS selector 強制抓圖")
+    parser.add_argument("--workers", type=int, default=4, help="平行執行緒數（建議 2~6）")
+    parser.add_argument("--retries", type=int, default=3, help="每個 URL 最多重試次數")
+    parser.add_argument("--retry-delay", type=float, default=1.2, help="重試基礎等待秒數（退避會倍增）")
+    parser.add_argument("--min-host-interval", type=float, default=0.35, help="同網域最小請求間隔秒數")
+    parser.add_argument("--max-candidates", type=int, default=8, help="每頁最多嘗試幾個圖片候選")
+    parser.add_argument(
+        "--only-new",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="只抓新增（預設 true，已下載會略過）",
+    )
     args = parser.parse_args()
 
     if not args.input.exists():
@@ -188,106 +392,33 @@ def main() -> None:
     args.output_dir.mkdir(parents=True, exist_ok=True)
     args.report_csv.parent.mkdir(parents=True, exist_ok=True)
 
-    session = requests.Session()
-    session.headers.update(
-        {
-            "User-Agent": (
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                "AppleWebKit/537.36 (KHTML, like Gecko) "
-                "Chrome/124.0.0.0 Safari/537.36"
-            )
-        }
-    )
-
     report_rows: list[dict[str, str]] = []
     ok_count = 0
     fail_count = 0
+    skipped_count = 0
 
-    for i, row in df.iterrows():
-        model = sanitize_filename(to_text(row.get(args.model_col)) or f"row{i+1}")
-        split_code = sanitize_filename(to_text(row.get(args.split_col, "")))
-        page_url = normalize_url(to_text(row.get(args.url_col)))
+    rows = [row.to_dict() for _, row in df.iterrows()]
+    host_lock = threading.Lock()
+    host_next_allowed: dict[str, float] = {}
 
-        if not page_url:
-            fail_count += 1
-            report_rows.append(
-                {
-                    "row": str(i + 2),
-                    "model": model,
-                    "splitCode": split_code,
-                    "pageUrl": "",
-                    "imageUrl": "",
-                    "status": "failed",
-                    "message": "empty product url",
-                    "savedPath": "",
-                }
-            )
-            continue
+    max_workers = max(1, min(int(args.workers), 16))
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = [
+            executor.submit(process_one_row, idx, row_data, args, host_lock, host_next_allowed)
+            for idx, row_data in enumerate(rows)
+        ]
+        for future in as_completed(futures):
+            row_result = future.result()
+            report_rows.append(row_result)
+            status = row_result.get("status", "")
+            if status == "ok":
+                ok_count += 1
+            elif status == "skipped_existing":
+                skipped_count += 1
+            else:
+                fail_count += 1
 
-        try:
-            page_resp = session.get(page_url, timeout=args.timeout)
-            page_resp.raise_for_status()
-            candidates = extract_image_candidates(
-                page_url=page_url,
-                html=page_resp.text,
-                img_selector=to_text(args.img_selector) or None,
-            )
-            if not candidates:
-                raise ValueError("no image candidate found from page")
-
-            last_err = ""
-            saved_path = ""
-            used_image_url = ""
-            for image_url in candidates[:8]:
-                try:
-                    binary, content_type = download_binary(session, image_url, timeout=args.timeout)
-                    ext = guess_extension(image_url, content_type)
-                    base = f"{model}_{split_code}" if split_code else model
-                    out_file = args.output_dir / f"{base}{ext}"
-                    if out_file.exists() and not args.overwrite:
-                        saved_path = str(out_file)
-                        used_image_url = image_url
-                        break
-                    out_file.write_bytes(binary)
-                    saved_path = str(out_file)
-                    used_image_url = image_url
-                    break
-                except Exception as ex:
-                    last_err = str(ex)
-
-            if not saved_path:
-                raise ValueError(f"all candidates failed: {last_err or 'unknown error'}")
-
-            ok_count += 1
-            report_rows.append(
-                {
-                    "row": str(i + 2),
-                    "model": model,
-                    "splitCode": split_code,
-                    "pageUrl": page_url,
-                    "imageUrl": used_image_url,
-                    "status": "ok",
-                    "message": "",
-                    "savedPath": saved_path,
-                }
-            )
-        except Exception as ex:
-            fail_count += 1
-            report_rows.append(
-                {
-                    "row": str(i + 2),
-                    "model": model,
-                    "splitCode": split_code,
-                    "pageUrl": page_url,
-                    "imageUrl": "",
-                    "status": "failed",
-                    "message": str(ex),
-                    "savedPath": "",
-                }
-            )
-
-        if args.delay > 0:
-            time.sleep(args.delay)
+    report_rows.sort(key=lambda x: int(x["row"]))
 
     with args.report_csv.open("w", encoding="utf-8-sig", newline="") as f:
         writer = csv.DictWriter(
@@ -297,7 +428,7 @@ def main() -> None:
         writer.writeheader()
         writer.writerows(report_rows)
 
-    print(f"[DONE] success={ok_count}, failed={fail_count}")
+    print(f"[DONE] success={ok_count}, skipped={skipped_count}, failed={fail_count}")
     print(f"[IMAGES] {args.output_dir}")
     print(f"[REPORT] {args.report_csv}")
 

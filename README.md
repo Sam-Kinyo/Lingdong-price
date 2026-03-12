@@ -116,9 +116,23 @@ pip install requests beautifulsoup4 pandas openpyxl
 python tools/fetch_product_images.py --input "c:\Users\郭庭豪\Desktop\暫存\LingDong商品總表.xlsx"
 ```
 
+### 進階模式（新增）
+- 只抓新增（預設開啟，已下載會略過）：
+```powershell
+python tools/fetch_product_images.py --input "c:\Users\郭庭豪\Desktop\暫存\LingDong商品總表.xlsx" --only-new
+```
+- 多執行緒加速（例如 6 線程）：
+```powershell
+python tools/fetch_product_images.py --input "c:\Users\郭庭豪\Desktop\暫存\LingDong商品總表.xlsx" --workers 6
+```
+- 網站容易擋流量時，放慢請求並增加重試：
+```powershell
+python tools/fetch_product_images.py --input "c:\Users\郭庭豪\Desktop\暫存\LingDong商品總表.xlsx" --workers 3 --min-host-interval 0.8 --retries 5 --retry-delay 2
+```
+
 ### 輸出結果
 - 圖片資料夾：`downloaded_images\`
-- 報表：`download_report.csv`（含成功/失敗、圖片網址、錯誤原因）
+- 報表：`download_report.csv`（含成功/略過/失敗、圖片網址、錯誤原因）
 
 ## 欄位固定規格（單一分頁）
 - 固定欄位：`品牌`、`分類`、`分流`、`國際條碼`、`型號`、`商品名稱`、`詢價含`、`市價含`、`售價含`、`箱入數`、`BSMI`、`NCC`、`狀態`、`商品對應網站`
