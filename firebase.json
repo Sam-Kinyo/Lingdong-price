@@ -1,0 +1,22 @@
+{
+  "hosting": {
+    "site": "lingdong-price",
+    "public": ".",
+    "ignore": [
+      "firebase.json",
+      ".firebaserc",
+      ".git/**",
+      ".github/**",
+      "backend/**",
+      "tools/**",
+      "**/*.md",
+      "**/__pycache__/**",
+      "**/*.pyc"
+    ],
+    "cleanUrls": false
+  },
+  "firestore": {
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json"
+  }
+}
