@@ -243,6 +243,66 @@ def create_session() -> requests.Session:
     return session
 
 
+def init_firestore(cred_path: str):
+    try:
+        import firebase_admin
+        from firebase_admin import credentials, firestore
+    except Exception as ex:
+        raise RuntimeError("firebase-admin 未安裝，請先執行: pip install firebase-admin") from ex
+
+    if cred_path:
+        cred_file = Path(cred_path)
+        if not cred_file.exists():
+            raise FileNotFoundError(f"找不到 Firebase 憑證檔: {cred_file}")
+        cred = credentials.Certificate(str(cred_file))
+        if not firebase_admin._apps:
+            firebase_admin.initialize_app(cred)
+    else:
+        if not firebase_admin._apps:
+            firebase_admin.initialize_app()
+
+    return firestore.client(), firestore
+
+
+def update_firestore_image_urls(rows: list[dict[str, str]], args: argparse.Namespace) -> tuple[int, int]:
+    db, fs_admin = init_firestore(args.firebase_cred)
+    ok = 0
+    fail = 0
+
+    for row in rows:
+        if row.get("status") != "ok":
+            continue
+        doc_id = to_text(row.get("splitCode") or row.get("model"))
+        image_url = to_text(row.get("imageUrl"))
+        if not doc_id or not image_url:
+            continue
+
+        payload = {
+            args.firestore_image_field: image_url,
+            "imageSource": "crawler",
+            "imageUpdatedAt": fs_admin.SERVER_TIMESTAMP,
+        }
+
+        last_err = ""
+        for attempt in range(args.firestore_retries + 1):
+            try:
+                db.collection(args.firebase_collection).document(doc_id).set(payload, merge=True)
+                ok += 1
+                last_err = ""
+                break
+            except Exception as ex:
+                last_err = str(ex)
+                if attempt < args.firestore_retries:
+                    time.sleep(max(0.5, args.firestore_retry_delay * (2 ** attempt)))
+                else:
+                    break
+
+        if last_err:
+            fail += 1
+
+    return ok, fail
+
+
 def process_one_row(
     row_index: int,
     row_data: dict[str, Any],
@@ -267,7 +327,7 @@ def process_one_row(
             "savedPath": "",
         }
 
-    if args.only_new and not args.overwrite:
+    if args.save_local and args.only_new and not args.overwrite:
         existing = find_existing_image(args.output_dir, base_name)
         if existing:
             return {
@@ -314,13 +374,15 @@ def process_one_row(
                     host_next_allowed=host_next_allowed,
                     min_host_interval=args.min_host_interval,
                 )
-                binary = img_resp.content
-                if not binary:
-                    raise ValueError("empty image content")
-                content_type = to_text(img_resp.headers.get("Content-Type"))
-                ext = guess_extension(image_url, content_type)
-                out_file = build_output_file(args.output_dir, base_name, ext, row_index + 2, args.overwrite)
-                out_file.write_bytes(binary)
+                out_file = None
+                if args.save_local:
+                    binary = img_resp.content
+                    if not binary:
+                        raise ValueError("empty image content")
+                    content_type = to_text(img_resp.headers.get("Content-Type"))
+                    ext = guess_extension(image_url, content_type)
+                    out_file = build_output_file(args.output_dir, base_name, ext, row_index + 2, args.overwrite)
+                    out_file.write_bytes(binary)
                 return {
                     "row": str(row_index + 2),
                     "model": model,
@@ -329,7 +391,7 @@ def process_one_row(
                     "imageUrl": image_url,
                     "status": "ok",
                     "message": "",
-                    "savedPath": str(out_file),
+                    "savedPath": str(out_file) if out_file else "",
                 }
             except Exception as ex:
                 last_err = str(ex)
@@ -371,11 +433,28 @@ def main() -> None:
     parser.add_argument("--min-host-interval", type=float, default=0.35, help="同網域最小請求間隔秒數")
     parser.add_argument("--max-candidates", type=int, default=8, help="每頁最多嘗試幾個圖片候選")
     parser.add_argument(
+        "--save-local",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="是否儲存圖片到本機（預設 true）",
+    )
+    parser.add_argument(
         "--only-new",
         action=argparse.BooleanOptionalAction,
         default=True,
         help="只抓新增（預設 true，已下載會略過）",
     )
+    parser.add_argument(
+        "--update-firestore",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help="抓圖成功後是否直接更新 Firestore（寫入 imageUrl）",
+    )
+    parser.add_argument("--firebase-cred", default="", help="Firebase service account JSON 路徑")
+    parser.add_argument("--firebase-collection", default="Products", help="Firestore 集合名稱")
+    parser.add_argument("--firestore-image-field", default="imageUrl", help="Firestore 圖片欄位名稱")
+    parser.add_argument("--firestore-retries", type=int, default=3, help="Firestore 更新重試次數")
+    parser.add_argument("--firestore-retry-delay", type=float, default=1.0, help="Firestore 重試基礎等待秒數")
     args = parser.parse_args()
 
     if not args.input.exists():
@@ -389,7 +468,8 @@ def main() -> None:
         if col not in df.columns:
             raise ValueError(f"缺少必要欄位: {col}")
 
-    args.output_dir.mkdir(parents=True, exist_ok=True)
+    if args.save_local:
+        args.output_dir.mkdir(parents=True, exist_ok=True)
     args.report_csv.parent.mkdir(parents=True, exist_ok=True)
 
     report_rows: list[dict[str, str]] = []
@@ -428,8 +508,15 @@ def main() -> None:
         writer.writeheader()
         writer.writerows(report_rows)
 
+    if args.update_firestore:
+        fs_ok, fs_fail = update_firestore_image_urls(report_rows, args)
+        print(f"[FIRESTORE] updated={fs_ok}, failed={fs_fail}, collection={args.firebase_collection}")
+
     print(f"[DONE] success={ok_count}, skipped={skipped_count}, failed={fail_count}")
-    print(f"[IMAGES] {args.output_dir}")
+    if args.save_local:
+        print(f"[IMAGES] {args.output_dir}")
+    else:
+        print("[IMAGES] local save disabled (--no-save-local)")
     print(f"[REPORT] {args.report_csv}")
 
 

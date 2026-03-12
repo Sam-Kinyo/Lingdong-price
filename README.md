@@ -130,6 +130,16 @@ python tools/fetch_product_images.py --input "c:\Users\郭庭豪\Desktop\暫存\
 python tools/fetch_product_images.py --input "c:\Users\郭庭豪\Desktop\暫存\LingDong商品總表.xlsx" --workers 3 --min-host-interval 0.8 --retries 5 --retry-delay 2
 ```
 
+### 直接同步到 system（不存本機）
+> 需要先準備 Firebase service account JSON（例如 `D:\keys\lingdong-price-admin.json`）
+
+```powershell
+python tools/fetch_product_images.py --input "c:\Users\郭庭豪\Desktop\暫存\LingDong商品總表.xlsx" --workers 3 --min-host-interval 0.8 --no-save-local --update-firestore --firebase-cred "D:\keys\lingdong-price-admin.json"
+```
+
+- 作用：抓圖成功後，直接更新 Firestore `Products/{splitCode}.imageUrl`
+- 前台 `system.html` 會優先顯示 `imageUrl`，所以會立即對應到商品圖片
+
 ### 輸出結果
 - 圖片資料夾：`downloaded_images\`
 - 報表：`download_report.csv`（含成功/略過/失敗、圖片網址、錯誤原因）
