@@ -106,6 +106,7 @@ export function setupLoginButton() {
   if (!doLoginBtn) return;
 
   const triggerLogin = async () => {
+    if (doLoginBtn.disabled) return;
     let email = loginEmail.value.trim();
     const password = loginPassword.value.trim();
     
@@ -158,8 +159,6 @@ export function setupLoginButton() {
   };
   if (loginEmail) loginEmail.addEventListener("keydown", onEnterKey);
   if (loginPassword) loginPassword.addEventListener("keydown", onEnterKey);
-  if (loginEmail) loginEmail.addEventListener("keyup", onEnterKey);
-  if (loginPassword) loginPassword.addEventListener("keyup", onEnterKey);
 
   // 保險：當登入覆蓋層顯示時，全域 Enter 也可直接登入
   document.addEventListener("keydown", (e) => {
@@ -179,9 +178,8 @@ export function setupLogoutButton() {
   logoutBtn.onclick = () => {
     if(confirm("確定要登出嗎？")) {
         signOut(auth).then(() => {
-            // 保持在當前頁，onAuthStateChanged 會自動顯示登入覆蓋層
-            const loginOverlay = document.getElementById("loginOverlay");
-            if (loginOverlay) loginOverlay.style.display = "flex";
+            // 導向乾淨的登入頁狀態，避免殘留任何上一位使用者畫面
+            window.location.replace("/system.html");
         }).catch((error) => {
             console.error("登出錯誤:", error);
             alert("登出發生錯誤，請重新整理網頁");
@@ -231,6 +229,15 @@ export function setupAuthListener() {
       state.isGroupBuyUser = false;
 
       resetUiAfterLogout();
+      const doLoginBtn = document.getElementById("doLoginBtn");
+      const loginPassword = document.getElementById("loginPassword");
+      const loginError = document.getElementById("loginError");
+      if (doLoginBtn) {
+        doLoginBtn.disabled = false;
+        doLoginBtn.textContent = "登入";
+      }
+      if (loginPassword) loginPassword.value = "";
+      if (loginError) loginError.style.display = "none";
       if(loginOverlay) loginOverlay.style.display = "flex";
       if (logoutBtn) logoutBtn.style.display = "none";
       window.dispatchEvent(new CustomEvent("level-state-changed"));
