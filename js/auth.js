@@ -8,7 +8,6 @@ import { state } from './state.js';
 import { setupQtySelectByLevel } from './search.js';
 import { updateUserDisplay } from './search.js';
 import { preloadDriveModelData, preloadProducts } from './data.js';
-import { activeCompanyKey } from './company-config.js';
 
 function isLocalDataMode() {
   return window.__USE_LOCAL_DB__ === true || new URLSearchParams(window.location.search).get("local") === "1";
@@ -23,21 +22,33 @@ function isLingdongAdmin(email) {
   return admins.has(e);
 }
 
+function toLevel(v) {
+  const n = Number(v);
+  if (!Number.isFinite(n)) return 0;
+  return Math.max(0, Math.floor(n));
+}
+
+async function loadUserPermissionData(user) {
+  const emailRaw = String(user?.email || "").trim();
+  const emailLower = emailRaw.toLowerCase();
+  const uid = String(user?.uid || "").trim();
+  const candidateIds = Array.from(new Set([emailLower, emailRaw, uid])).filter(Boolean);
+
+  for (const id of candidateIds) {
+    const userDoc = await getDoc(doc(db, "Users", id));
+    if (userDoc.exists()) {
+      return userDoc.data() || null;
+    }
+  }
+  return null;
+}
+
 /* 權限更新 */
 export function updatePermissions() {
     const importProductBtn = document.getElementById("importProductBtn");
     const exportHistoryBtn = document.getElementById("exportHistoryBtn");
     const stockFilter = document.getElementById("stockFilter");
     const setHotBtn = document.getElementById("setHotBtn");
-
-    // Lingdong 專案：先固定開啟管理功能，確保可匯入總表
-    if (activeCompanyKey === "lingdong") {
-        if (importProductBtn) importProductBtn.style.display = 'inline-block';
-        if (exportHistoryBtn) exportHistoryBtn.style.display = 'inline-block';
-        if (setHotBtn) setHotBtn.style.display = 'inline-block';
-        if (stockFilter) stockFilter.style.display = 'none';
-        return;
-    }
 
     if (state.userLevel >= 4) {
         if(importProductBtn) importProductBtn.style.display = 'inline-block'; 
@@ -196,29 +207,17 @@ export function setupAuthListener() {
     state.currentUserVipConfig = null;
     state.isGroupBuyUser = false;
 
-    // 先套用管理員 fallback，避免 Firestore 文件 key 差異造成權限遺失
+    // 管理員 fallback：若 Users 沒建檔仍可保底進入管理權限
     if (isLingdongAdmin(state.currentUserEmail)) {
       state.originalUserLevel = 4;
       state.userLevel = 4;
     }
 
     try {
-        const emailRaw = state.currentUserEmail;
-        const emailLower = emailRaw.toLowerCase();
-        const candidateIds = Array.from(new Set([emailLower, emailRaw]));
-
-        let userData = null;
-        for (const id of candidateIds) {
-          if (!id) continue;
-          const userDoc = await getDoc(doc(db, "Users", id));
-          if (userDoc.exists()) {
-            userData = userDoc.data();
-            break;
-          }
-        }
+        const userData = await loadUserPermissionData(user);
 
         if (userData) {
-          state.originalUserLevel = userData.level ?? 0;
+          state.originalUserLevel = toLevel(userData.level);
           state.userLevel = state.originalUserLevel;
           if (userData.groupBuy === true) {
             state.isGroupBuyUser = true;
@@ -230,19 +229,15 @@ export function setupAuthListener() {
             };
           }
         } else {
-          state.originalUserLevel = 0;
-          state.userLevel = 0;
+          // 無 Users 檔案時保留 admin fallback，其他帳號為 0
+          state.originalUserLevel = Math.max(state.originalUserLevel, 0);
+          state.userLevel = state.originalUserLevel;
         }
     } catch (e) {
         console.error("Auth Error:", e);
-        state.originalUserLevel = 0;
-        state.userLevel = 0;
-    }
-
-    // Lingdong 正式站：目前先將已登入帳號一律視為 Level 4（先確保後台可正常匯入）
-    if (activeCompanyKey === "lingdong") {
-      state.originalUserLevel = Math.max(state.originalUserLevel, 4);
-      state.userLevel = state.originalUserLevel;
+        // 讀取失敗時只保留 admin fallback，不再強制全員 L4
+        state.originalUserLevel = Math.max(state.originalUserLevel, 0);
+        state.userLevel = state.originalUserLevel;
     }
 
     if (state.currentUserEmail.toLowerCase() === 'show@kinyo.com') {

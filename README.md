@@ -168,9 +168,16 @@ python tools/fetch_product_images.py --input "c:\Users\郭庭豪\Desktop\暫存\
 ## Firebase Auth（Email/Password）
 1. 至 Firebase Console -> Authentication -> Sign-in method 啟用 `Email/Password`
 2. 新增使用者（Authentication -> Users）
-3. 在 Firestore 建立 `Users/{email}` 文件，至少包含：
-   - `level: 4`（管理員可看到匯入按鈕）
-4. 目前 `system.html` 已是 Firebase 正式模式（`window.__USE_LOCAL_DB__ = false`）
+3. 在 Firestore 建立 `Users/{docId}` 文件（`docId` 可用 email 小寫、原始 email 或 auth uid），欄位建議：
+   - `level`：數字 0~4（決定可見報價層級）
+   - `groupBuy`：`true/false`（選填）
+   - `vipColumn`、`vipName`（VIP 客戶選填）
+4. 等級對應：
+   - `L1`：50 / 100
+   - `L2`：50 / 100 / 300
+   - `L3`：50 / 100 / 300 / 500 / 1000
+   - `L4`：50 / 100 / 300 / 500 / 1000 / 3000 + 匯入產品按鈕
+5. 目前 `system.html` 已是 Firebase 正式模式（`window.__USE_LOCAL_DB__ = false`）
 
 ## 正式模式首次上線建議流程
 1. 先用管理員帳號登入 `https://lingdong-price.web.app/system.html`
