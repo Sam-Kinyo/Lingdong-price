@@ -209,7 +209,7 @@ export async function preloadProducts() {
       });
     }
 
-    if (isLocalDataMode()) {
+    if (isLocalDataMode() || activeCompanyKey === "lingdong") {
       // Local mode: keep one row per splitCode (分流唯一鍵), do not merge by main model.
       state.productCache = rawList
         .filter(item => item.status !== 'inactive')

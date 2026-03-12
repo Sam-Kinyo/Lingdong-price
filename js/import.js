@@ -5,6 +5,45 @@ import { collection, doc, writeBatch } from "https://www.gstatic.com/firebasejs/
 import { db } from './firebase-init.js';
 import { state } from './state.js';
 import { getDocsWithRetry } from './data.js';
+import { activeCompanyKey } from './company-config.js';
+
+const LINGDONG_REQUIRED_COLUMNS = [
+  "品牌", "分類", "分流", "國際條碼", "型號", "商品名稱",
+  "詢價\n含", "市價\n含", "售價\n含", "箱入數", "BSMI", "NCC", "狀態", "商品對應網站"
+];
+
+function hasLingdongColumns(rowObj) {
+  return LINGDONG_REQUIRED_COLUMNS.every((k) => Object.prototype.hasOwnProperty.call(rowObj, k));
+}
+
+function toText(v) {
+  if (v === undefined || v === null) return "";
+  const t = String(v).trim();
+  return t.toLowerCase() === "nan" ? "" : t;
+}
+
+function toNumber(v) {
+  const t = toText(v).replace(/,/g, "");
+  if (!t) return 0;
+  const n = Number(t);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function toBarcode(v) {
+  const t = toText(v).replace(/,/g, "");
+  if (!t) return "";
+  if (/^\d+\.0+$/.test(t)) return t.split(".")[0];
+  return t;
+}
+
+function toStatus(statusText) {
+  const s = toText(statusText);
+  return (s === "下架" || s === "停產") ? "inactive" : "active";
+}
+
+function toInventory(statusText) {
+  return toText(statusText) === "缺貨中" ? 0 : 200;
+}
 
 /* 產品匯入 Excel 解析 */
 export function setupProductUpload() {
@@ -22,7 +61,62 @@ export function setupProductUpload() {
         const data = evt.target.result;
         const workbook = XLSX.read(data, { type: 'binary' });
         const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+        const objectRows = XLSX.utils.sheet_to_json(firstSheet, { defval: "" });
         const jsonData = XLSX.utils.sheet_to_json(firstSheet, { header: 1 }); 
+
+        if (activeCompanyKey === "lingdong" && objectRows.length > 0 && hasLingdongColumns(objectRows[0])) {
+          const dedupBySplitCode = new Map();
+          objectRows.forEach((row) => {
+            const splitCode = toText(row["分流"]);
+            if (!splitCode) return;
+            const modelVal = toText(row["型號"]).toUpperCase() || splitCode;
+            const statusText = toText(row["狀態"]);
+            const obj = {
+              splitCode,
+              brand: toText(row["品牌"]),
+              category: toText(row["分類"]),
+              model: modelVal,
+              mainModel: modelVal.split('-')[0],
+              name: toText(row["商品名稱"]) || modelVal,
+              cost: toNumber(row["詢價\n含"]),
+              marketPrice: toNumber(row["市價\n含"]),
+              minPrice: toNumber(row["售價\n含"]),
+              inventory: toInventory(statusText),
+              status: toStatus(statusText),
+              statusText,
+              isControlled: false,
+              internationalBarcode: toBarcode(row["國際條碼"]),
+              barcode: toBarcode(row["國際條碼"]),
+              cartonQty: parseInt(toNumber(row["箱入數"]), 10) || 0,
+              bsmi: toText(row["BSMI"]),
+              ncc: toText(row["NCC"]),
+              productUrl: toText(row["商品對應網站"]),
+              netSalesPermission: "",
+              sourceSheet: workbook.SheetNames[0],
+            };
+            dedupBySplitCode.set(splitCode, { data: obj, model: modelVal, splitCode });
+          });
+
+          const actions = Array.from(dedupBySplitCode.values());
+          const previewHeader = document.getElementById("previewHeader");
+          const previewContent = document.getElementById("previewContent");
+          const previewOverlay = document.getElementById("previewOverlay");
+
+          previewHeader.textContent = "靈動格式匯入確認（分流唯一鍵）";
+          previewContent.innerHTML = `
+            <div style="padding:20px; text-align:center;">
+              <h3 style="color:#2563eb;">已解析 ${actions.length} 筆資料</h3>
+              <ul style="text-align:left; display:inline-block; font-size:14px; color:#444; margin-top:10px;">
+                <li>✅ 唯一鍵：分流（splitCode）</li>
+                <li>✅ 狀態映射：停產/下架->inactive，其他->active</li>
+                <li>✅ 庫存策略：缺貨中=0，其餘=200（暫定）</li>
+              </ul>
+            </div>
+          `;
+          state.pendingProductData = actions;
+          previewOverlay.style.display = "flex";
+          return;
+        }
 
         let h = {
           model: -1, name: -1, 
@@ -207,6 +301,27 @@ export async function saveProductDataToFirestore(actions) {
     let successCount = 0;
 
     try {
+        if (activeCompanyKey === "lingdong") {
+            importProductBtn.textContent = "正在寫入資料庫...";
+            for (const item of actions) {
+                const splitCode = String(item.splitCode || item.data.splitCode || "").trim();
+                if (!splitCode) continue;
+                const docRef = doc(db, "Products", splitCode);
+                batch.set(docRef, { ...item.data, splitCode }, { merge: true });
+                opCount++;
+                successCount++;
+                if (opCount >= BATCH_LIMIT) {
+                    await batch.commit();
+                    batch = writeBatch(db);
+                    opCount = 0;
+                }
+            }
+            if (opCount > 0) await batch.commit();
+            alert(`產品總表同步完成！\n以分流為基準，共處理了 ${successCount} 筆資料。\n系統將自動重新整理。`);
+            window.location.reload();
+            return;
+        }
+
         const snap = await getDocsWithRetry(collection(db, "Products"));
         const rawMap = new Map();
 

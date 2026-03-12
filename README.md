@@ -2,8 +2,8 @@
 
 此專案由 `D:\SAM-KINYO-WEBSITE\kinyo-price` 複製而來，並已切換為：
 - 靈動數碼品牌模式
-- 本地資料模式（不需 Firebase 登入）
-- 商品資料來源為你提供的 Excel 轉檔 JSON
+- Firebase 正式模式（Email/Password 登入 + Firestore）
+- 商品可由固定格式 Excel 直接匯入 Firestore（分流唯一鍵）
 
 ## 技術棧
 
@@ -98,14 +98,9 @@ python -m http.server 5600
 - Hosting URL: `https://lingdong-price.web.app`
 
 ## Excel 資料來源
-- 來源檔：`c:\Users\郭庭豪\Desktop\暫存\LingDong商品總表.xlsx`
-- 轉檔後資料：`products_local.json`
-- 轉檔腳本：`tools/excel_to_products_local.py`
-
-重新同步 Excel 後請執行：
-```powershell
-python tools/excel_to_products_local.py
-```
+- 來源檔（上傳用）：`c:\Users\郭庭豪\Desktop\暫存\LingDong商品總表.xlsx`
+- 匯入入口：系統頁 `📥 匯入產品總表 (同步上下架)` 按鈕
+- 寫入目標：Firestore `Products` 集合（文件 ID = `splitCode`）
 
 ## 欄位固定規格（單一分頁）
 - 固定欄位：`品牌`、`分類`、`分流`、`國際條碼`、`型號`、`商品名稱`、`詢價含`、`市價含`、`售價含`、`箱入數`、`BSMI`、`NCC`、`狀態`、`商品對應網站`
@@ -123,10 +118,14 @@ python tools/excel_to_products_local.py
 ## Firebase Auth（Email/Password）
 1. 至 Firebase Console -> Authentication -> Sign-in method 啟用 `Email/Password`
 2. 新增使用者（Authentication -> Users）
-3. 之後若要切換到 Firebase 正式模式，將 `system.html` 內：
-   - `window.__USE_LOCAL_DB__ = true;`
-   改為
-   - `window.__USE_LOCAL_DB__ = false;`
+3. 在 Firestore 建立 `Users/{email}` 文件，至少包含：
+   - `level: 4`（管理員可看到匯入按鈕）
+4. 目前 `system.html` 已是 Firebase 正式模式（`window.__USE_LOCAL_DB__ = false`）
+
+## 正式模式首次上線建議流程
+1. 先用管理員帳號登入 `https://lingdong-price.web.app/system.html`
+2. 點 `📥 匯入產品總表 (同步上下架)`，上傳 `LingDong商品總表.xlsx`
+3. 匯入完成會自動刷新，前台即改讀 Firestore 正式資料
 
 ## 已知架構特性
 
