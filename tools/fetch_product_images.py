@@ -246,7 +246,7 @@ def create_session() -> requests.Session:
     return session
 
 
-def init_firebase_clients(cred_path: str, bucket_name: str):
+def init_firebase_clients(cred_path: str, bucket_name: str, expected_project_id: str = ""):
     try:
         import firebase_admin
         from firebase_admin import credentials, firestore, storage
@@ -258,6 +258,13 @@ def init_firebase_clients(cred_path: str, bucket_name: str):
         cred_file = Path(cred_path)
         if not cred_file.exists():
             raise FileNotFoundError(f"找不到 Firebase 憑證檔: {cred_file}")
+        cred_data = json.loads(cred_file.read_text(encoding="utf-8"))
+        cred_project_id = to_text(cred_data.get("project_id"))
+        if expected_project_id and cred_project_id and cred_project_id != expected_project_id:
+            raise RuntimeError(
+                f"憑證 project_id 不符：目前是 {cred_project_id}，預期是 {expected_project_id}。"
+                "請改用 lingdong-price 的 service account JSON。"
+            )
         cred = credentials.Certificate(str(cred_file))
         if not firebase_admin._apps:
             firebase_admin.initialize_app(cred, options)
@@ -268,6 +275,17 @@ def init_firebase_clients(cred_path: str, bucket_name: str):
     db = firestore.client()
     bucket = storage.bucket(bucket_name)
     return db, firestore, bucket
+
+
+def firebase_preflight_check(db, bucket, collection_name: str) -> None:
+    # Fail-fast: 先做一次最小讀取，避免跑完整批才發現憑證錯誤
+    try:
+        list(db.collection(collection_name).limit(1).stream())
+        bucket.get_blob("__preflight_not_exists__")
+    except Exception as ex:
+        raise RuntimeError(
+            "Firebase 連線預檢失敗，請確認 service account 是否為 lingdong-price 且金鑰有效。"
+        ) from ex
 
 
 def upload_image_to_storage(
@@ -294,7 +312,7 @@ def upload_image_to_storage(
 
 
 def update_firestore_image_urls(rows: list[dict[str, str]], args: argparse.Namespace) -> tuple[int, int]:
-    db, fs_admin, _ = init_firebase_clients(args.firebase_cred, args.firebase_bucket)
+    db, fs_admin, _ = init_firebase_clients(args.firebase_cred, args.firebase_bucket, args.expected_project_id)
     ok = 0
     fail = 0
     target_rows = [r for r in rows if r.get("status") == "ok"]
@@ -502,6 +520,7 @@ def main() -> None:
     )
     parser.add_argument("--firebase-cred", default="", help="Firebase service account JSON 路徑")
     parser.add_argument("--firebase-bucket", default=DEFAULT_FIREBASE_BUCKET, help="Firebase Storage bucket 名稱")
+    parser.add_argument("--expected-project-id", default="lingdong-price", help="預期 Firebase project_id（憑證檢查用）")
     parser.add_argument("--firebase-collection", default="Products", help="Firestore 集合名稱")
     parser.add_argument("--firestore-image-field", default="imageUrl", help="Firestore 圖片欄位名稱")
     parser.add_argument("--firestore-retries", type=int, default=3, help="Firestore 更新重試次數")
@@ -554,7 +573,8 @@ def main() -> None:
     bucket = None
 
     if args.upload_to_storage or args.update_firestore:
-        _, _, bucket = init_firebase_clients(args.firebase_cred, args.firebase_bucket)
+        db_check, _, bucket = init_firebase_clients(args.firebase_cred, args.firebase_bucket, args.expected_project_id)
+        firebase_preflight_check(db_check, bucket, args.firebase_collection)
 
     max_workers = max(1, min(int(args.workers), 16))
     if args.progress:
