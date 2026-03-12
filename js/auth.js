@@ -13,8 +13,6 @@ function isLocalDataMode() {
   return window.__USE_LOCAL_DB__ === true || new URLSearchParams(window.location.search).get("local") === "1";
 }
 
-const AUTH_REFRESH_FLAG = "LINGDONG_FORCE_REFRESH_AFTER_LOGIN";
-
 function toLevel(v) {
   const n = Number(v);
   if (!Number.isFinite(n)) return 0;
@@ -39,6 +37,42 @@ async function loadUserPermissionData(user) {
     }
   }
   return null;
+}
+
+function resetUiAfterLogout() {
+  state.currentResultList = [];
+  state.hasCheckedItems = false;
+  state.quoteList = [];
+
+  const fields = ["keyword", "minPrice", "maxPrice"];
+  fields.forEach((id) => {
+    const el = document.getElementById(id);
+    if (el) el.value = "";
+  });
+
+  const selects = ["brandSelect", "categorySelect", "qtySelect", "sortSelect", "stockFilter"];
+  selects.forEach((id) => {
+    const el = document.getElementById(id);
+    if (el) el.value = "";
+  });
+
+  const resultBody = document.getElementById("resultBody");
+  const resultTable = document.getElementById("resultTable");
+  const detailCard = document.getElementById("detailCard");
+  const checkAll = document.getElementById("checkAll");
+  if (resultBody) resultBody.innerHTML = "";
+  if (resultTable) resultTable.style.display = "none";
+  if (detailCard) detailCard.style.display = "none";
+  if (checkAll) checkAll.checked = false;
+
+  const btnIds = ["exportBtn", "pptToolbarBtn", "multiLineBtn", "batchAddQuoteBtn"];
+  btnIds.forEach((id) => {
+    const btn = document.getElementById(id);
+    if (btn) btn.disabled = true;
+  });
+
+  const quoteToolbarBtn = document.getElementById("quoteToolbarBtn");
+  if (quoteToolbarBtn) quoteToolbarBtn.style.display = "none";
 }
 
 /* 權限更新 */
@@ -90,12 +124,9 @@ export function setupLoginButton() {
     doLoginBtn.textContent = "登入中...";
 
     try {
-      // 登入後強制刷新一次，避免沿用前一帳號的搜尋與頁面狀態
-      sessionStorage.setItem(AUTH_REFRESH_FLAG, "1");
       await setPersistence(auth, browserLocalPersistence);
       await signInWithEmailAndPassword(auth, email, password);
     } catch (error) {
-      sessionStorage.removeItem(AUTH_REFRESH_FLAG);
       if (error.message && error.message.includes("message channel closed")) {
           console.warn("Ignored non-fatal auth error:", error);
           doLoginBtn.disabled = false;
@@ -195,7 +226,13 @@ export function setupAuthListener() {
     if (!user) {
       state.originalUserLevel = 0;
       state.userLevel = 0;
+      state.currentUserEmail = "";
+      state.currentUserVipConfig = null;
+      state.isGroupBuyUser = false;
+
+      resetUiAfterLogout();
       if(loginOverlay) loginOverlay.style.display = "flex";
+      if (logoutBtn) logoutBtn.style.display = "none";
       window.dispatchEvent(new CustomEvent("level-state-changed"));
       return;
     }
@@ -231,13 +268,6 @@ export function setupAuthListener() {
         console.error("Auth Error:", e);
         state.originalUserLevel = 0;
         state.userLevel = 0;
-    }
-
-    // 只有在「剛登入」時強制刷新一次，避免帳號切換殘留舊搜尋結果
-    if (sessionStorage.getItem(AUTH_REFRESH_FLAG) === "1") {
-      sessionStorage.removeItem(AUTH_REFRESH_FLAG);
-      window.location.reload();
-      return;
     }
 
     if (state.currentUserEmail.toLowerCase() === 'show@kinyo.com') {
