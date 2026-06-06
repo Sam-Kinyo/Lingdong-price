@@ -179,7 +179,7 @@ export function setupLogoutButton() {
     if(confirm("確定要登出嗎？")) {
         signOut(auth).then(() => {
             // 導向乾淨的登入頁狀態，避免殘留任何上一位使用者畫面
-            window.location.replace("/system.html");
+            window.location.replace("/system");
         }).catch((error) => {
             console.error("登出錯誤:", error);
             alert("登出發生錯誤，請重新整理網頁");

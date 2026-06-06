@@ -5,7 +5,7 @@
     "redirects": [
       {
         "source": "/",
-        "destination": "/system.html",
+        "destination": "/system",
         "type": 302
       }
     ],
@@ -48,7 +48,7 @@
       "**/*.bat",
       "**/*.exe"
     ],
-    "cleanUrls": false
+    "cleanUrls": true
   },
   "firestore": {
     "rules": "firestore.rules",

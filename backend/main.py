@@ -72,6 +72,8 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
+        "https://lingdong.tw",
+        "https://www.lingdong.tw",
         "https://lingdong-price-tw.web.app",
         "https://lingdong-price-tw.firebaseapp.com",
         "https://sam-kinyo.github.io",
