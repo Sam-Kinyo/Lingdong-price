@@ -55,34 +55,34 @@ def list_files(service, query):
             break
     return results
 
-def get_split_code(filename: str) -> str:
-    # 1. 去除副檔名
+def get_split_codes(filename: str):
+    """從檔名解析出一或多個分流碼。
+
+    支援多色合併檔名（分流碼以 - _ 空白 連接，例如 240A43-240A44-240A45），
+    並去除「首圖/首/主圖」、「(數字)」、結尾編號等後綴。只回傳符合分流碼格式
+    （3 位數字開頭的英數，例如 240463 / 240A43 / 525C16）的片段，避免把商品
+    描述文字誤判為分流碼。"""
     name, _ = os.path.splitext(filename)
-    
-    # 2. 清除不必要的後綴: "-首圖", "_09", " (9)"
-    name = re.sub(r'[-_ ]*首圖$', '', name, flags=re.IGNORECASE)
-    name = re.sub(r'[-_ ]*\(\d+\)$', '', name)
-    name = re.sub(r'[-_]\d+$', '', name)
-    
-    # 3. 切割底線、空白
-    parts = re.split(r'[_ ]', name)
-    base = parts[0].upper()
-    
-    # 特例：WV- 開頭
-    if base.startswith("WV-"):
-        match_wv = re.match(r'^(WV-[A-Z0-9]+)([A-Z]*)$', base)
-        if match_wv:
-            return match_wv.group(1)
-        return base
-        
-    # 一般拆分 (英文字+數字 或純數字)
-    clean_base = base.replace('-', '')
-    match = re.match(r'^([A-Z]*)(\d+)([A-Z]*)$', clean_base)
-    if match:
-        # e.g. "528851" -> group(1)="", group(2)="528851" -> returns "528851"
-        return match.group(1) + match.group(2)
-        
-    return clean_base
+    # 去除常見後綴
+    name = re.sub(r'[-_ ]*(首圖|主圖|首|主|main|cover)\s*$', '', name, flags=re.IGNORECASE)
+    name = re.sub(r'[-_ ]*\(\d+\)\s*$', '', name)
+    # 不在此去除結尾「-數字」：會誤刪純數字分流碼（如 -525257）。
+    # 短編號（如 -8）位數不足 3 位，會被下方格式過濾自然排除。
+
+    codes = []
+    for part in re.split(r'[-_ ]+', name):
+        part = part.strip().upper()
+        if part.startswith("WV") and re.match(r'^WV[A-Z0-9]+$', part):
+            codes.append(part)
+        elif re.match(r'^\d{3}[A-Z0-9]*$', part):
+            codes.append(part)
+
+    seen, out = set(), []
+    for c in codes:
+        if c not in seen:
+            seen.add(c)
+            out.append(c)
+    return out
 
 def download_image(drive_service, file_id):
     request = drive_service.files().get_media(fileId=file_id)
@@ -131,12 +131,8 @@ def scan_new_structure_folder(drive_service, db, bucket, folder_id, folder_name)
     # 分析所有圖片並依照「分流(Split Code)」分組
     group_by_model = {}
     for img in images:
-        model_key = get_split_code(img['name'])
-        if not model_key:
-            continue
-        if model_key not in group_by_model:
-            group_by_model[model_key] = []
-        group_by_model[model_key].append(img)
+        for model_key in get_split_codes(img['name']):
+            group_by_model.setdefault(model_key, []).append(img)
         
     for model_key, group_images in group_by_model.items():
         print(f" └─> 🔍 發現分流 [{model_key}] 共 {len(group_images)} 張圖片，開始同步...")
@@ -146,12 +142,15 @@ def scan_new_structure_folder(drive_service, db, bucket, folder_id, folder_name)
         
         doc_ref = db.collection('Products').document(model_key)
         doc_snap = doc_ref.get()
-        doc_data = doc_snap.to_dict() if doc_snap.exists else {}
+        if not doc_snap.exists:
+            print(f"   ⚠️ 略過 [{model_key}]：資料庫無此分流碼，不創建幽靈")
+            continue
+        doc_data = doc_snap.to_dict()
         
         drive_mapping = doc_data.get('driveMapping', {})
         net_images_urls = []
         main_image_url = ""
-        main_img_obj = next((img for img in group_images if '首圖' in img['name']), None)
+        main_img_obj = next((img for img in group_images if '首' in img['name']), None)
         
         uploaded = 0
         for img in group_images:
@@ -173,7 +172,7 @@ def scan_new_structure_folder(drive_service, db, bucket, folder_id, folder_name)
             # 分離首圖與網路圖 (不把首圖混入網路圖陣列)
             if img == main_img_obj:
                 main_image_url = url
-            elif '首圖' not in img['name']:
+            elif '首' not in img['name']:
                 if url not in net_images_urls:
                     net_images_urls.append(url)
                     
