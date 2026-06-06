@@ -123,8 +123,15 @@ def scan_new_structure_folder(drive_service, db, bucket, folder_id, folder_name)
     print(f"\n📁 掃描目錄: {folder_name} ({folder_id})")
     items = list_files(drive_service, f"'{folder_id}' in parents and trashed=false")
     
-    # 過濾出圖片檔案
+    # 直接層圖片 = 主圖候選
     images = [img for img in items if img.get('mimeType', '').startswith('image/')]
+    # 併入「網路圖」子資料夾的圖，標記為網路圖（PPT 下排的 netImages）
+    for _sub in items:
+        if _sub.get('mimeType') == 'application/vnd.google-apps.folder' and ('網路' in _sub['name'] or 'net' in _sub['name'].lower()):
+            for _ni in list_files(drive_service, f"'{_sub['id']}' in parents and trashed=false"):
+                if _ni.get('mimeType', '').startswith('image/'):
+                    _ni['_isNet'] = True
+                    images.append(_ni)
     if not images:
         print("   -> 無圖片檔案。")
         return
@@ -151,7 +158,8 @@ def scan_new_structure_folder(drive_service, db, bucket, folder_id, folder_name)
         drive_mapping = doc_data.get('driveMapping', {})
         net_images_urls = []
         main_image_url = ""
-        main_img_obj = next((img for img in group_images if '首' in img['name']), None)
+        _directs = [im for im in group_images if not im.get('_isNet')]
+        main_img_obj = next((im for im in _directs if '首' in im['name']), _directs[0] if _directs else None)
         
         uploaded = 0
         for img in group_images:
@@ -170,10 +178,10 @@ def scan_new_structure_folder(drive_service, db, bucket, folder_id, folder_name)
             url = drive_mapping.get(img['id'])
             if not url: continue
             
-            # 分離首圖與網路圖 (不把首圖混入網路圖陣列)
+            # 主圖 = 直接層主圖；網路圖 = 「網路圖」子資料夾的圖
             if img == main_img_obj:
                 main_image_url = url
-            elif '首' not in img['name']:
+            elif img.get('_isNet'):
                 if url not in net_images_urls:
                     net_images_urls.append(url)
                     
