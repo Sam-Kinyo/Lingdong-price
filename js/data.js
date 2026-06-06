@@ -27,7 +27,7 @@ export async function getDocsWithRetry(queryRef, retries = 3, delay = 1000) {
 /* Cache 管理 */
 export function getCacheKey() {
   const mail = (state.currentUserEmail || "guest").toLowerCase();
-  return `${activeCompanyKey.toUpperCase()}_SAFE_CACHE_V580_${mail}`;
+  return `${activeCompanyKey.toUpperCase()}_SAFE_CACHE_V582_${mail}`;
 }
 
 export function loadCache() {
@@ -209,12 +209,30 @@ export async function preloadProducts() {
       });
     }
 
+    // 將 Firestore 中存儲的圖片(來自 Google Drive 同步腳本)對應到前端快取中，支援 PPT 生成
+    rawList.forEach(item => {
+        const keysToMap = [item.model, item.mainModel, item.splitCode, item.id]
+            .filter(Boolean)
+            .map(k => normalizeKey(String(k)));
+            
+        keysToMap.forEach(k => {
+            if (item.mainImage && !state.driveMap.has(k)) {
+                state.driveMap.set(k, String(item.mainImage).trim().replace(/[\r\n]/g, ''));
+            }
+            if (Array.isArray(item.netImages) && item.netImages.length > 0 && !state.netImagesMap.has(k)) {
+                state.netImagesMap.set(k, item.netImages.map(u => String(u).trim().replace(/[\r\n]/g, '')));
+            }
+        });
+    });
+
     if (activeCompanyKey === "lingdong") {
-      // Lingdong: merge rows by exact product name so same item with different colors shows once.
+      // Lingdong: merge rows by mainModel (or product name) so same item with different colors shows once.
       const mergedByName = {};
       rawList.forEach(item => {
         if (item.status === 'inactive') return;
-        const key = String(item.name || item.mainModel || item.model || "").trim().toLowerCase();
+        
+        // 優先以 mainModel 做合併，若無再用品名，確保「主型號一樣但品名有加顏色詞」的商品能順利整合在同一個卡片
+        const key = String(item.mainModel || item.name || item.model || "").trim().toLowerCase();
         if (!key) return;
 
         const variantObj = {
@@ -249,6 +267,38 @@ export async function preloadProducts() {
         if (parseInt(item.inventory || 0, 10) > parseInt(target.inventory || 0, 10)) {
           target.inventory = item.inventory;
         }
+      });
+
+      // 後處理：自動從品名差異提取顏色（當 colorList 為空時）
+      Object.values(mergedByName).forEach(product => {
+        const variants = product.variants;
+        if (variants.length <= 1) return;
+        if (!variants.every(v => v.color === "單一款式")) return;
+
+        const names = variants.map(v => {
+          const found = rawList.find(r => r.splitCode === v.splitCode);
+          return found ? String(found.name || "") : "";
+        }).filter(Boolean);
+        if (names.length < 2) return;
+
+        let prefix = names[0];
+        for (const n of names) {
+          while (!n.startsWith(prefix)) prefix = prefix.slice(0, -1);
+        }
+        let suffix = names[0];
+        for (const n of names) {
+          while (!n.endsWith(suffix)) suffix = suffix.slice(1);
+        }
+
+        variants.forEach((v, i) => {
+          if (i < names.length) {
+            const color = names[i].slice(prefix.length, names[i].length - suffix.length).trim();
+            if (color) v.color = color;
+          }
+        });
+
+        const colors = variants.map(v => v.color).filter(c => c && c !== "單一款式");
+        if (colors.length) product.colorList = colors.join(" / ");
       });
 
       state.productCache = Object.values(mergedByName).map(p => {

@@ -245,9 +245,9 @@ export function renderResults(list) {
 
 /* 手機版 Detail */
 export function showDetailMobile(item) {
-  const driveMainFolder = getDriveMainFolder(item.model, item.mainModel);
+  const driveMainFolder = item.folderUrl || getDriveMainFolder(item.model, item.mainModel);
   const netImages = getDriveNetImages(item.model, item.mainModel) || [];
-  const netFolderUrl = getDriveNetGallery(item.model, item.mainModel);
+  const netFolderUrl = item.folderUrl || getDriveNetGallery(item.model, item.mainModel);
   const actMainLink = driveMainFolder || getDriveMainImage(item.model, item.mainModel);
   const actNetLink = netFolderUrl || (netImages && netImages.length > 0 ? netImages[0] : "");
 
@@ -406,9 +406,9 @@ export function showDetailDesktop(item) {
   const detailCard = document.getElementById("detailCard");
   if (window.hideDetailTimer) clearTimeout(window.hideDetailTimer);
 
-  const driveMainFolder = getDriveMainFolder(item.model, item.mainModel);
+  const driveMainFolder = item.folderUrl || getDriveMainFolder(item.model, item.mainModel);
   const netImages = getDriveNetImages(item.model, item.mainModel) || []; 
-  const netFolderUrl = getDriveNetGallery(item.model, item.mainModel);
+  const netFolderUrl = item.folderUrl || getDriveNetGallery(item.model, item.mainModel);
   const actMainLink = driveMainFolder || getDriveMainImage(item.model, item.mainModel);
   const actNetLink = netFolderUrl || (netImages && netImages.length > 0 ? netImages[0] : "");
 

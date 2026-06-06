@@ -156,6 +156,7 @@ export function getGoogleDriveId(url) {
 /* 圖片抓取並轉為 DataURL (PPT 用) */
 export async function fetchAsDataURL(url) {
   if (!url) return null;
+  url = String(url).trim().replace(/[\r\n]/g, '');
   let targetUrl = url;
   if (url.includes("drive.google.com") || url.includes("googleusercontent.com")) {
     const id = getGoogleDriveId(url);
@@ -257,17 +258,28 @@ export function getMainModel(model) {
   const raw = String(model).trim().toUpperCase();
   if (!raw) return "";
 
+  // 1. 處理帶連字號的 (e.g., GAN07-140W-W)
   if (raw.includes("-")) {
     const parts = raw.split("-");
     const last = parts[parts.length - 1];
-    if (/^[A-Z]{1,3}$/.test(last)) {
-        return raw.substring(0, raw.lastIndexOf("-"));
+    if (/^[A-Z]{1,4}$/.test(last)) {
+        return raw.substring(0, raw.lastIndexOf("-")).trim();
     }
   }
 
-  const match = raw.match(/(.*[0-9]+)([A-Z]{1,3})$/);
+  // 2. 處理帶空格的 (e.g., GAN12-45W BK)
+  if (raw.includes(" ")) {
+    const parts = raw.split(" ");
+    const last = parts[parts.length - 1];
+    if (/^[A-Z]{1,4}$/.test(last)) {
+        return raw.substring(0, raw.lastIndexOf(" ")).trim();
+    }
+  }
+
+  // 3. 處理無分隔符號直接連著的
+  const match = raw.match(/(.*[0-9]+)([A-Z]{1,4})$/);
   if (match) {
-      return match[1];
+      return match[1].trim();
   }
 
   return raw;
