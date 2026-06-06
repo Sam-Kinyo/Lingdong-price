@@ -19,9 +19,10 @@ except ImportError as e:
     sys.exit(1)
 
 TARGET_FOLDER_ID = "16Oo0mn_MiMGRXuEfY9J6cTADNU3qO7F5"
-FIREBASE_CREDENTIAL_FILE = r"D:\keys\lingdong-price-admin.json"
+# 已切換到新專案 lingdong-price-tw（舊專案 lingdong-price 已刪除）
+FIREBASE_CREDENTIAL_FILE = os.path.join(os.path.dirname(__file__), "..", "backend", "serviceAccountKey.json")
 DRIVE_CREDENTIAL_FILE = r"D:\SAM-KINYO-WEBSITE\kinyo-price\functions\credentials.json"
-FIREBASE_BUCKET = "lingdong-price.firebasestorage.app"
+FIREBASE_BUCKET = "lingdong-price-tw.firebasestorage.app"
 
 def get_drive_service():
     scopes = ['https://www.googleapis.com/auth/drive.readonly']
@@ -195,6 +196,11 @@ def scan_new_structure_folder(drive_service, db, bucket, folder_id, folder_name)
 
 
 def main():
+    import argparse
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--limit", type=int, default=0, help="只處理前 N 個資料夾（0=全部），測試用")
+    args = ap.parse_args()
+
     print("🚀 LingDong 圖片圖庫同步啟動中...")
     db, bucket = init_firebase()
     drive_service = get_drive_service()
@@ -205,7 +211,11 @@ def main():
     
     print(f"共找到 {len(root_items)} 個項目。")
     count = 0
-    for item in root_items:
+    folder_items = [i for i in root_items if i.get('mimeType') == 'application/vnd.google-apps.folder']
+    if args.limit:
+        folder_items = folder_items[:args.limit]
+        print(f"[測試模式] 只處理前 {len(folder_items)} 個資料夾")
+    for item in folder_items:
         count += 1
         print(f"⏳ 進度: {count} / {len(root_items)}")
         

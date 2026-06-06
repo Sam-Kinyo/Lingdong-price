@@ -11,6 +11,8 @@ merge 模式會保留既有的 imageUrl / imageSource 等雲端欄位，只覆�
   python tools/sync_quote_to_firestore.py --input "<xlsx>" --prefix 515  # 只處理某前綴
 """
 import argparse
+import datetime
+import json
 import os
 import re
 import sys
@@ -191,6 +193,16 @@ def main():
     if not args.commit:
         print("\n[DRY-RUN] 未寫入任何資料。確認無誤後加 --commit 實際寫入。")
         return
+
+    # 寫入前自動備份當前線上 Products（安全網，可還原）
+    bdir = os.path.join(os.path.dirname(__file__), "..", "backups")
+    os.makedirs(bdir, exist_ok=True)
+    ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    bpath = os.path.join(bdir, f"Products_{ts}.json")
+    with open(bpath, "w", encoding="utf-8") as f:
+        json.dump([{"_id": k, **v} for k, v in online.items()], f,
+                  ensure_ascii=False, indent=2, default=str)
+    print(f"\n[BACKUP] 已備份線上 {len(online)} 筆 Products -> {bpath}")
 
     batch = db.batch()
     n = total = 0

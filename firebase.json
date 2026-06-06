@@ -41,6 +41,7 @@
       "firestore_export/**",
       "products_local.json",
       "products_local.backup_*.json",
+      "backups/**",
       "**/*.md",
       "**/__pycache__/**",
       "**/*.pyc",
