@@ -94,8 +94,8 @@ python -m http.server 5600
 
 ## 已部署環境
 - GitHub Repo: `https://github.com/Sam-Kinyo/Lingdong-price`
-- Firebase Project: `lingdong-price`
-- Hosting URL: `https://lingdong-price.web.app`
+- Firebase Project: `lingdong-price-tw`
+- Hosting URL: `https://lingdong-price-tw.web.app`
 
 ## Excel 資料來源
 - 來源檔（上傳用）：`c:\Users\郭庭豪\Desktop\暫存\LingDong商品總表.xlsx`
@@ -136,7 +136,7 @@ python tools/fetch_product_images.py --input "c:\Users\郭庭豪\Desktop\暫存\
 > 需要先準備 Firebase service account JSON（例如 `D:\keys\lingdong-price-admin.json`）
 
 ```powershell
-python tools/fetch_product_images.py --input "c:\Users\郭庭豪\Desktop\暫存\LingDong商品總表.xlsx" --workers 3 --min-host-interval 0.8 --no-save-local --upload-to-storage --update-firestore --firebase-cred "D:\LINGDONG_PROJECT\lingdong-price\backend\serviceAccountKey.json" --firebase-bucket "lingdong-price.firebasestorage.app"
+python tools/fetch_product_images.py --input "c:\Users\郭庭豪\Desktop\暫存\LingDong商品總表.xlsx" --workers 3 --min-host-interval 0.8 --no-save-local --upload-to-storage --update-firestore --firebase-cred "D:\LINGDONG_PROJECT\lingdong-price\backend\serviceAccountKey.json" --firebase-bucket "lingdong-price-tw.firebasestorage.app"
 ```
 
 - 作用：先上傳圖片到 Firebase Storage，再更新 Firestore `Products/{splitCode}.imageUrl`
@@ -180,7 +180,7 @@ python tools/fetch_product_images.py --input "c:\Users\郭庭豪\Desktop\暫存\
 5. 目前 `system.html` 已是 Firebase 正式模式（`window.__USE_LOCAL_DB__ = false`）
 
 ## 正式模式首次上線建議流程
-1. 先用管理員帳號登入 `https://lingdong-price.web.app/system.html`
+1. 先用管理員帳號登入 `https://lingdong-price-tw.web.app/system.html`
 2. 點 `📥 匯入產品總表 (同步上下架)`，上傳 `LingDong商品總表.xlsx`
 3. 匯入完成會自動刷新，前台即改讀 Firestore 正式資料
 
