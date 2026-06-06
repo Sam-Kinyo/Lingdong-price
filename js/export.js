@@ -102,10 +102,11 @@ async function buildProductSlide(pptx, item, tier, customQuoteInfo, context) {
     let cleanName = rawName.replace(/\*.*$/, '').trim();
 
     const netImages = getDriveNetImages(item.model, item.mainModel) || [];
-    let imagesToDisplay = [...netImages];
     const driveMain = getDriveMainImage(item.model, item.mainModel);
     const rawImg = item.imageUrl;
-    
+
+    // 主圖排第一格（左上），網路圖接在後面，最多 6 張
+    let imagesToDisplay = [];
     const addUnique = (url) => {
         if(url && !imagesToDisplay.includes(url) && imagesToDisplay.length < 6) {
             imagesToDisplay.push(url);
@@ -113,6 +114,7 @@ async function buildProductSlide(pptx, item, tier, customQuoteInfo, context) {
     };
     addUnique(driveMain);
     if(rawImg && rawImg.startsWith('http')) addUnique(rawImg);
+    netImages.forEach(addUnique);
 
     let quoteLabel = "", quotePriceStr = "";
     if (customQuoteInfo) {
