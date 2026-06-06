@@ -13,6 +13,7 @@ merge 模式會保留既有的 imageUrl / imageSource 等雲端欄位，只覆�
 import argparse
 import datetime
 import json
+import math
 import os
 import re
 import sys
@@ -69,6 +70,28 @@ def norm_code(v):
         return str(int(v))
     t = str(v).strip()
     return t.split(".")[0] if re.match(r"^\d+\.0+$", t) else t
+
+
+DIVISOR_MAP = {
+    4: {50: 0.75, 100: 0.78, 300: 0.81, 500: 0.835, 1000: 0.858, 3000: 0.89},
+    3: {50: 0.75, 100: 0.78, 300: 0.81, 500: 0.835, 1000: 0.858},
+    2: {50: 0.74, 100: 0.77, 300: 0.80},
+    1: {50: 0.73, 100: 0.76},
+}
+
+
+def quotes_for(cost):
+    """各等級各級距的預存報價 {level: {tier: price}}（方案 B：前端讀此值、不需 cost）。"""
+    try:
+        c = float(cost)
+    except (TypeError, ValueError):
+        return {}
+    if c <= 0:
+        return {}
+    return {
+        str(lv): {str(t): int(math.ceil((c / d) * 1.05)) for t, d in tiers.items()}
+        for lv, tiers in DIVISOR_MAP.items()
+    }
 
 
 def find_header(rows):
@@ -131,6 +154,7 @@ def parse_workbook(path):
                 netSalesPermission="",
                 sourceSheet=sn,
             )
+            items[sc]["quotes"] = quotes_for(items[sc]["cost"])
             cnt += 1
         sheet_stats[sn] = cnt
     return items, sheet_stats
