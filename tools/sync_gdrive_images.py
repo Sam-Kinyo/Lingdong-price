@@ -19,7 +19,7 @@ except ImportError as e:
     print("請先執行 pip install firebase-admin google-api-python-client google-auth-httplib2 google-auth-oauthlib")
     sys.exit(1)
 
-TARGET_FOLDER_ID = "16Oo0mn_MiMGRXuEfY9J6cTADNU3qO7F5"
+TARGET_FOLDER_ID = "19cwRAlrqg_abz_obAffnD1qVO4ROgI-7"  # sam.kuo@lingdong.tw 的雲端硬碟圖庫（2026-06 由 kuo.tinghow 移轉）
 # 已切換到新專案 lingdong-price-tw（舊專案 lingdong-price 已刪除）
 FIREBASE_CREDENTIAL_FILE = os.path.join(os.path.dirname(__file__), "..", "backend", "serviceAccountKey.json")
 DRIVE_CREDENTIAL_FILE = r"D:\SAM-KINYO-WEBSITE\kinyo-price\functions\credentials.json"
