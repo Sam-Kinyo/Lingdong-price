@@ -26,5 +26,6 @@ new_excel_profile.json
 downloaded_images/
 download_report.csv
 
-# 本地資料備份
+# 本地商品檔與備份（含成本價，不入庫避免外洩；正式模式讀 Firestore）
+products_local.json
 products_local.backup_*.json
