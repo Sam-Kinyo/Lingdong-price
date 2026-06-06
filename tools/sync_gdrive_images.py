@@ -4,8 +4,12 @@ import io
 import time
 import uuid
 import sys
+import socket
 import urllib.parse
 from datetime import datetime
+
+# 避免單張圖下載時網路 hang 住整個流程：設全域 socket 逾時，逾時會拋例外被重試/略過接手
+socket.setdefaulttimeout(90)
 
 # Attempt to import necessary packages
 try:
