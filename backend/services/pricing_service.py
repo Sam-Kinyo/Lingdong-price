@@ -244,6 +244,48 @@ def search_products(
 
 
 # ═══════════════════════════════════════════════════════════
+# C-0. 報價係數表 + 查價 API 用的批次報價計算
+# ═══════════════════════════════════════════════════════════
+# 報價 = 無條件進位(cost / 係數 × 1.05)。calculate_tier_price 內亦有同表，
+# 之後可統一引用；此處供網頁查價 API（compute_tier_quotes）使用，
+# 讓前端「不必拿到 cost」也能顯示報價。
+DIVISOR_MAP: dict[int, dict[int, float]] = {
+    4: {50: 0.75, 100: 0.78, 300: 0.81, 500: 0.835, 1000: 0.858, 3000: 0.89},
+    3: {50: 0.75, 100: 0.78, 300: 0.81, 500: 0.835, 1000: 0.858},
+    2: {50: 0.74, 100: 0.77, 300: 0.80},
+    1: {50: 0.73, 100: 0.76},
+}
+
+
+def effective_level(level: int) -> int:
+    """L4↑→4、L3→3、其餘照原值（最低 0）。"""
+    if level >= 4:
+        return 4
+    if level >= 3:
+        return 3
+    return max(int(level or 0), 0)
+
+
+def compute_tier_quotes(cost: Any, level: int) -> dict[int, int]:
+    """依成本與等級，算出該等級「各數量級距」的含稅報價（無條件進位）。
+
+    供網頁查價 API 使用：後端算好報價，前端就不需要、也拿不到 cost。
+    回傳 {數量級距: 報價}；cost 無效或等級無對應時回空 dict。
+    """
+    try:
+        cost_f = float(cost)
+    except (TypeError, ValueError):
+        return {}
+    el = effective_level(level)
+    if cost_f <= 0 or el not in DIVISOR_MAP:
+        return {}
+    return {
+        tier: int(math.ceil((cost_f / div) * 1.05))
+        for tier, div in DIVISOR_MAP[el].items()
+    }
+
+
+# ═══════════════════════════════════════════════════════════
 # C. 權限與報價計算 (calculate_tier_price)
 # ═══════════════════════════════════════════════════════════
 def calculate_tier_price(

@@ -17,10 +17,11 @@ from contextlib import asynccontextmanager
 from typing import AsyncGenerator
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from core.config import PORT
 from database.firestore_db import load_all_products, ProductCache
-from routers import webhook_api, system_api
+from routers import webhook_api, system_api, catalog_api
 
 # ═══════════════════════════════════════════
 # Logging 設定
@@ -67,9 +68,23 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# CORS：允許前端網域呼叫查價 / 後台 API（帶 Authorization header）
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "https://lingdong-price-tw.web.app",
+        "https://lingdong-price-tw.firebaseapp.com",
+        "https://sam-kinyo.github.io",
+        "http://localhost:5600",
+    ],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 # 掛載路由
 app.include_router(webhook_api.router)
 app.include_router(system_api.router)
+app.include_router(catalog_api.router)
 
 
 # ═══════════════════════════════════════════
