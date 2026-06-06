@@ -22,9 +22,15 @@ service cloud.firestore {
       allow read, write: if isAdmin();
     }
 
-    // 使用者權限（含等級）：僅管理員可讀寫，避免客戶看到/竄改他人等級
+    // 使用者權限（含等級）：
+    //  - 管理員可讀寫全部
+    //  - 一般使用者僅能讀「自己」那筆（doc id = 自己的 email 小寫）；auth.js 要靠它取得自身 level
+    //  - 寫入一律限管理員，避免客戶竄改自己/他人的等級
     match /Users/{id} {
-      allow read, write: if isAdmin();
+      allow read: if isAdmin()
+                  || (isSignedIn() && request.auth.token.email is string
+                      && id == request.auth.token.email.lower());
+      allow write: if isAdmin();
     }
 
     // 報價歷史 / 點擊統計：登入者可新增，僅管理員可讀
