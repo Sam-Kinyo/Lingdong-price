@@ -40,8 +40,7 @@ const COMPANY_CONFIGS = {
       Powered by lingdong
     `,
     ppt: {
-      // TODO: 可替換成靈動數碼專屬 logo
-      logoUrl: "https://drive.google.com/uc?id=1JxoU3A5qAYsE39pc2z7IMVwVS8-uTOIn",
+      logoUrl: "https://firebasestorage.googleapis.com/v0/b/lingdong-price-tw.firebasestorage.app/o/assets%2Flingdong-logo.png?alt=media&token=796d4700-8e8a-49bd-af6d-070a52ff1dd3",
       salesName: "靈動數碼",
       salesPhone: "",
       filePrefix: "Lingdong-商品推薦報價"
