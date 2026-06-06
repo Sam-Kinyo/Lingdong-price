@@ -1,6 +1,7 @@
 import os
 import re
 import io
+import time
 import uuid
 import sys
 import urllib.parse
@@ -220,7 +221,15 @@ def main():
         
         # 我們只處理資料夾
         if item.get('mimeType') == 'application/vnd.google-apps.folder':
-            scan_new_structure_folder(drive_service, db, bucket, item['id'], item['name'])
+            for attempt in range(3):
+                try:
+                    scan_new_structure_folder(drive_service, db, bucket, item['id'], item['name'])
+                    break
+                except Exception as e:
+                    print(f"   ⚠️ 網路出錯，重試 {attempt+1}/3: {type(e).__name__}")
+                    time.sleep(3)
+            else:
+                print(f"   ❌ 重試 3 次仍失敗，跳過此資料夾: {item['name']}")
             
     print("\n🎉 全部圖庫同步完成！")
 
