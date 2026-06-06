@@ -1,6 +1,6 @@
 {
   "hosting": {
-    "site": "lingdong-price",
+    "site": "lingdong-price-tw",
     "public": ".",
     "redirects": [
       {
@@ -40,7 +40,9 @@
       "download_report.csv",
       "**/*.md",
       "**/__pycache__/**",
-      "**/*.pyc"
+      "**/*.pyc",
+      "**/*.bat",
+      "**/*.exe"
     ],
     "cleanUrls": false
   },

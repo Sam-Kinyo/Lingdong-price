@@ -47,12 +47,13 @@ const COMPANY_CONFIGS = {
       filePrefix: "Lingdong-商品推薦報價"
     },
     firebase: {
-      apiKey: "AIzaSyAoL7mdjr-A9mjZAAvgYV2qeonLPHHuNyw",
-      authDomain: "lingdong-price.firebaseapp.com",
-      projectId: "lingdong-price",
-      storageBucket: "lingdong-price.firebasestorage.app",
-      messagingSenderId: "1024909517978",
-      appId: "1:1024909517978:web:4fa6825ad83c8730c9ab23"
+      apiKey: "AIzaSyAK7UJYcgO__HZwPB-ps_J0vsDW-P8eb5w",
+      authDomain: "lingdong-price-tw.firebaseapp.com",
+      projectId: "lingdong-price-tw",
+      storageBucket: "lingdong-price-tw.firebasestorage.app",
+      messagingSenderId: "571774189506",
+      appId: "1:571774189506:web:1960aaefdbea40fa2e205b",
+      measurementId: "G-P62LW8V1SN"
     }
   }
 };
