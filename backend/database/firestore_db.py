@@ -108,10 +108,15 @@ async def load_all_products() -> int:
             # 保留 Document ID 供後續反查
             data["_doc_id"] = doc.id
 
-            # 以國際條碼為快取 Key (與前端 system.html 匯入邏輯一致)
-            barcode: str = str(
-                data.get("internationalBarcode", data.get("barcode", doc.id))
-            ).strip()
+            # 快取 Key：優先國際條碼 → barcode → doc.id（splitCode）
+            # ⚠️ 用 `or` 串接而非 dict.get 的預設值：欄位可能「存在但為空字串」，
+            #    直接 data.get("internationalBarcode", ...) 會回傳 ""，導致大量無條碼
+            #    商品全部 collide 到同一個空 key 而互相覆蓋（曾因此漏掉 54 筆）。
+            barcode: str = (
+                str(data.get("internationalBarcode") or "").strip()
+                or str(data.get("barcode") or "").strip()
+                or doc.id
+            )
 
             new_cache[barcode] = data
             count += 1

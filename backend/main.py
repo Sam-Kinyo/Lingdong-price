@@ -21,7 +21,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from core.config import PORT
 from database.firestore_db import load_all_products, ProductCache
-from routers import webhook_api, system_api, catalog_api
+from routers import webhook_api, system_api, catalog_api, admin_api, admin_products_api
 
 # ═══════════════════════════════════════════
 # Logging 設定
@@ -85,6 +85,8 @@ app.add_middleware(
 app.include_router(webhook_api.router)
 app.include_router(system_api.router)
 app.include_router(catalog_api.router)
+app.include_router(admin_api.router)
+app.include_router(admin_products_api.router)
 
 
 # ═══════════════════════════════════════════

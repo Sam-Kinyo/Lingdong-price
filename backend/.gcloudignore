@@ -1,0 +1,25 @@
+# .gcloudignore — 控制 `gcloud run deploy --source` 上傳到 Cloud Build 的內容
+# 語法同 .gitignore。此檔存在時，gcloud 會忽略 .gitignore 改用本檔。
+#
+# ⚠️ 安全紅線：機密檔絕不可上傳（本專案曾因 deploy 未排除而外洩 passwordHash/成本價）
+.env
+.env.*
+serviceAccountKey.json
+*serviceAccount*.json
+*.key
+*.pem
+
+# Python 快取 / 虛擬環境 / 暫存
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+
+# 文件 / 版控 / 雜項（不需進映像）
+*.md
+.git/
+.gitignore
+.DS_Store
+.gcloudignore

@@ -285,6 +285,27 @@ def compute_tier_quotes(cost: Any, level: int) -> dict[int, int]:
     }
 
 
+def compute_all_quotes(cost: Any) -> dict[str, dict[str, int]]:
+    """算出所有等級 × 各數量級距的報價，結構 {"4":{"50":x,...},"3":{...},...}。
+
+    key 皆為字串（Firestore 欄位需求），供後台「商品管理」寫入 Products.quotes 預存。
+    與 tools/backfill_quotes.quotes_for 邏輯一致；cost 無效或 <=0 回空 dict。
+    """
+    try:
+        cost_f = float(cost)
+    except (TypeError, ValueError):
+        return {}
+    if cost_f <= 0:
+        return {}
+    return {
+        str(lv): {
+            str(tier): int(math.ceil((cost_f / div) * 1.05))
+            for tier, div in tiers.items()
+        }
+        for lv, tiers in DIVISOR_MAP.items()
+    }
+
+
 # ═══════════════════════════════════════════════════════════
 # C. 權限與報價計算 (calculate_tier_price)
 # ═══════════════════════════════════════════════════════════

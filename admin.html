@@ -1,0 +1,548 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="robots" content="noindex,nofollow" />
+<title>靈動數碼 — 管理後台</title>
+<style>
+  :root{
+    --bg:#f4f6f8; --card:#fff; --ink:#1f2937; --muted:#6b7280; --line:#e5e7eb;
+    --brand:#2563eb; --brand-d:#1d4ed8; --ok:#059669; --warn:#d97706; --danger:#dc2626;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:"Segoe UI",system-ui,"Microsoft JhengHei",sans-serif;background:var(--bg);color:var(--ink);font-size:14px}
+  button{font-family:inherit;cursor:pointer;border:none;border-radius:8px;padding:8px 14px;font-size:14px;transition:.15s}
+  button:disabled{opacity:.5;cursor:not-allowed}
+  input,select,textarea{font-family:inherit;font-size:14px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:#fff;width:100%}
+  textarea{resize:vertical}
+  .btn-primary{background:var(--brand);color:#fff}.btn-primary:hover{background:var(--brand-d)}
+  .btn-ghost{background:#eef2ff;color:var(--brand)}
+  .btn-danger{background:#fef2f2;color:var(--danger)}.btn-danger:hover{background:#fee2e2}
+  .btn-warn{background:#fffbeb;color:var(--warn)}
+  .btn-sm{padding:5px 10px;font-size:13px}
+
+  /* 登入 */
+  #loginOverlay{position:fixed;inset:0;background:linear-gradient(135deg,#1e3a8a,#2563eb);display:flex;align-items:center;justify-content:center;z-index:50}
+  .login-card{background:#fff;border-radius:16px;padding:36px 32px;width:340px;box-shadow:0 20px 60px rgba(0,0,0,.3)}
+  .login-card h1{font-size:20px;margin:0 0 4px}
+  .login-card p{color:var(--muted);margin:0 0 22px;font-size:13px}
+  .login-card label{display:block;font-size:13px;color:var(--muted);margin:12px 0 4px}
+  .login-card button{width:100%;margin-top:20px;padding:11px}
+  #loginErr{color:var(--danger);font-size:13px;margin-top:12px;min-height:18px}
+
+  /* 主框架 */
+  #app{display:none}
+  header{background:#fff;border-bottom:1px solid var(--line);padding:12px 24px;display:flex;align-items:center;gap:16px;position:sticky;top:0;z-index:10}
+  header .title{font-weight:700;font-size:17px}
+  header .spacer{flex:1}
+  header .who{color:var(--muted);font-size:13px}
+  .tabs{display:flex;gap:8px;padding:16px 24px 0}
+  .tab{background:#fff;border:1px solid var(--line);border-bottom:none;border-radius:10px 10px 0 0;padding:10px 20px;font-weight:600;color:var(--muted)}
+  .tab.active{color:var(--brand);box-shadow:inset 0 -3px 0 var(--brand)}
+  main{padding:0 24px 40px}
+  .panel{display:none;background:var(--card);border:1px solid var(--line);border-radius:0 12px 12px 12px;padding:20px}
+  .panel.active{display:block}
+  .panel-head{display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap}
+  .panel-head h2{font-size:16px;margin:0}
+  .panel-head .spacer{flex:1}
+  .search{max-width:280px}
+
+  table{width:100%;border-collapse:collapse}
+  th,td{text-align:left;padding:9px 10px;border-bottom:1px solid var(--line);font-size:13px;white-space:nowrap}
+  th{color:var(--muted);font-weight:600;background:#fafbfc;position:sticky;top:57px}
+  td.wrap{white-space:normal;min-width:160px}
+  .table-wrap{max-height:64vh;overflow:auto;border:1px solid var(--line);border-radius:10px}
+  .pill{display:inline-block;padding:2px 9px;border-radius:999px;font-size:12px;font-weight:600}
+  .pill.on{background:#ecfdf5;color:var(--ok)}.pill.off{background:#fef2f2;color:var(--danger)}
+  .lv{font-weight:700;color:var(--brand)}
+  .muted{color:var(--muted)}
+  .row-actions{display:flex;gap:6px}
+
+  /* Modal */
+  .modal-bg{position:fixed;inset:0;background:rgba(15,23,42,.5);display:none;align-items:center;justify-content:center;z-index:40;padding:20px}
+  .modal-bg.show{display:flex}
+  .modal{background:#fff;border-radius:14px;width:560px;max-width:100%;max-height:90vh;overflow:auto;padding:24px}
+  .modal h3{margin:0 0 16px;font-size:17px}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .grid label{display:block;font-size:12px;color:var(--muted);margin-bottom:4px}
+  .grid .full{grid-column:1/3}
+  .modal-foot{display:flex;justify-content:flex-end;gap:10px;margin-top:20px}
+  .hint{font-size:12px;color:var(--muted);margin-top:6px}
+
+  /* Toast */
+  #toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);z-index:60;display:flex;flex-direction:column;gap:8px;align-items:center}
+  .toast-item{background:#111827;color:#fff;padding:11px 18px;border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.25);font-size:14px;animation:fade .2s}
+  .toast-item.ok{background:var(--ok)}.toast-item.err{background:var(--danger)}
+  @keyframes fade{from{opacity:0;transform:translateY(8px)}}
+  .empty{text-align:center;color:var(--muted);padding:30px}
+</style>
+</head>
+<body>
+
+<!-- 登入 -->
+<div id="loginOverlay">
+  <div class="login-card">
+    <h1>管理後台</h1>
+    <p>靈動數碼 · 需管理員權限 (level ≥ 4)</p>
+    <label>Email</label>
+    <input id="email" type="email" autocomplete="username" placeholder="admin@lingdong.tw" />
+    <label>密碼</label>
+    <input id="password" type="password" autocomplete="current-password" placeholder="••••••••" />
+    <button id="loginBtn" class="btn-primary">登入</button>
+    <div id="loginErr"></div>
+  </div>
+</div>
+
+<!-- 主應用 -->
+<div id="app">
+  <header>
+    <span class="title">🛠️ 靈動數碼 管理後台</span>
+    <span class="spacer"></span>
+    <span class="who" id="whoami"></span>
+    <button class="btn-ghost btn-sm" id="logoutBtn">登出</button>
+  </header>
+
+  <div class="tabs">
+    <div class="tab active" data-tab="accounts">👤 帳號管理</div>
+    <div class="tab" data-tab="products">📦 商品管理</div>
+  </div>
+
+  <main>
+    <!-- 帳號 -->
+    <section class="panel active" id="panel-accounts">
+      <div class="panel-head">
+        <h2>帳號管理</h2>
+        <span class="muted" id="acctCount"></span>
+        <span class="spacer"></span>
+        <button class="btn-primary btn-sm" id="newAcctBtn">＋ 新增帳號</button>
+        <button class="btn-ghost btn-sm" id="reloadAcctBtn">↻ 重新整理</button>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Email</th><th>生效等級<br>(claim)</th><th>Users 文件</th><th>狀態</th><th>操作</th></tr></thead>
+          <tbody id="acctBody"><tr><td colspan="5" class="empty">載入中…</td></tr></tbody>
+        </table>
+      </div>
+      <p class="hint">「生效等級」來自登入 token 的 custom claim（實際權限依據）。改級或建帳號後，該使用者需重新登入才會刷新等級。</p>
+    </section>
+
+    <!-- 商品 -->
+    <section class="panel" id="panel-products">
+      <div class="panel-head">
+        <h2>商品管理</h2>
+        <span class="muted" id="prodCount"></span>
+        <span class="spacer"></span>
+        <input class="search" id="prodSearch" placeholder="🔍 搜尋 編號 / 品名 / 型號" />
+        <select id="prodStatusFilter" style="width:auto">
+          <option value="">全部狀態</option>
+          <option value="active">上架中</option>
+          <option value="inactive">已停產</option>
+        </select>
+        <a class="btn-ghost btn-sm" href="/templates/product_import_template.xlsx" download="靈動商品匯入範本.xlsx" style="text-decoration:none">⬇️ 下載範本</a>
+        <button class="btn-ghost btn-sm" id="importBtn">📥 匯入 Excel</button>
+        <input type="file" id="importFile" accept=".xlsx,.xls" style="display:none" />
+        <button class="btn-primary btn-sm" id="newProdBtn">＋ 新增商品</button>
+        <button class="btn-ghost btn-sm" id="reloadProdBtn">↻ 重新整理</button>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>編號</th><th>品名</th><th>型號</th><th>狀態</th>
+            <th>成本</th><th>市售價</th><th>庫存</th><th>L4/50報價</th><th>操作</th>
+          </tr></thead>
+          <tbody id="prodBody"><tr><td colspan="9" class="empty">載入中…</td></tr></tbody>
+        </table>
+      </div>
+      <p class="hint">成本價僅後台可見，絕不下發前端/LINE；輸入成本後系統自動換算各等級報價（quotes）。圖片由命令列工具同步，編輯不影響。</p>
+    </section>
+  </main>
+</div>
+
+<!-- 帳號 Modal -->
+<div class="modal-bg" id="acctModal">
+  <div class="modal">
+    <h3>新增帳號</h3>
+    <div class="grid">
+      <div class="full"><label>Email</label><input id="m-acct-email" type="email" placeholder="customer@example.com" /></div>
+      <div class="full"><label>初始密碼（至少 6 碼）</label><input id="m-acct-pw" type="text" placeholder="至少 6 碼" /></div>
+      <div><label>權限等級</label>
+        <select id="m-acct-level">
+          <option value="1">1 — 一般</option>
+          <option value="2">2</option>
+          <option value="3">3</option>
+          <option value="4">4 — 管理員</option>
+        </select>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn-ghost" onclick="closeModal('acctModal')">取消</button>
+      <button class="btn-primary" id="acctSaveBtn">建立帳號</button>
+    </div>
+  </div>
+</div>
+
+<!-- 商品 Modal -->
+<div class="modal-bg" id="prodModal">
+  <div class="modal">
+    <h3 id="prodModalTitle">新增商品</h3>
+    <div class="grid">
+      <div><label>商品編號 splitCode *</label><input id="m-sc" placeholder="如 528851" /></div>
+      <div><label>狀態</label><select id="m-status"><option value="active">上架中</option><option value="inactive">已停產</option></select></div>
+      <div class="full"><label>品名 name</label><input id="m-name" /></div>
+      <div><label>型號 model</label><input id="m-model" /></div>
+      <div><label>主型號 mainModel</label><input id="m-mainModel" /></div>
+      <div><label>品牌 brand</label><input id="m-brand" /></div>
+      <div><label>分類 category</label><input id="m-category" /></div>
+      <div><label>成本 cost（→自動算報價）</label><input id="m-cost" type="number" step="0.01" /></div>
+      <div><label>市售價 marketPrice</label><input id="m-marketPrice" type="number" step="0.01" /></div>
+      <div><label>最低價 minPrice</label><input id="m-minPrice" type="number" step="0.01" /></div>
+      <div><label>庫存 inventory</label><input id="m-inventory" type="number" /></div>
+      <div><label>到貨 eta</label><input id="m-eta" /></div>
+      <div><label>國際條碼</label><input id="m-internationalBarcode" /></div>
+      <div><label>條碼 barcode</label><input id="m-barcode" /></div>
+      <div><label>箱入數 cartonQty</label><input id="m-cartonQty" type="number" /></div>
+      <div class="full"><label>狀態文字 statusText</label><input id="m-statusText" placeholder="如 一般商品" /></div>
+      <div class="full"><label>商品大圖網址 mainImage（會同時設為前端顯示大圖 imageUrl）</label><input id="m-mainImage" placeholder="https://…/main.jpg" /></div>
+      <div class="full"><label>網路圖 netImages（一行一個網址）</label><textarea id="m-netImages" rows="3" placeholder="https://…/1.jpg&#10;https://…/2.jpg"></textarea></div>
+    </div>
+    <p class="hint" id="prodModalHint"></p>
+    <div class="modal-foot">
+      <button class="btn-ghost" onclick="closeModal('prodModal')">取消</button>
+      <button class="btn-primary" id="prodSaveBtn">儲存</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script type="module">
+import { auth } from './js/firebase-init.js';
+import {
+  onAuthStateChanged, signInWithEmailAndPassword, signOut,
+  setPersistence, browserLocalPersistence
+} from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
+
+const BACKEND = "https://lingdong-backend-571774189506.asia-east1.run.app";
+
+// ───────── 工具 ─────────
+const $ = (id) => document.getElementById(id);
+function toast(msg, type="ok"){
+  const el = document.createElement("div");
+  el.className = "toast-item " + (type==="err"?"err":type==="ok"?"ok":"");
+  el.textContent = msg;
+  $("toast").appendChild(el);
+  setTimeout(()=>el.remove(), type==="err"?5000:2600);
+}
+function esc(s){ return String(s==null?"":s).replace(/[&<>"]/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
+
+async function api(path, opts={}){
+  if (!auth.currentUser) throw new Error("尚未登入");
+  const token = await auth.currentUser.getIdToken();
+  const res = await fetch(BACKEND + path, {
+    method: opts.method || "GET",
+    headers: { "Content-Type":"application/json", "Authorization":`Bearer ${token}` },
+    body: opts.body ? JSON.stringify(opts.body) : undefined,
+  });
+  const txt = await res.text();
+  let data; try { data = txt ? JSON.parse(txt) : {}; } catch { data = { detail: txt }; }
+  if (!res.ok) throw new Error(data.detail || `HTTP ${res.status}`);
+  return data;
+}
+
+// ───────── 登入 ─────────
+$("loginBtn").onclick = doLogin;
+$("password").addEventListener("keydown", e=>{ if(e.key==="Enter") doLogin(); });
+async function doLogin(){
+  const email = $("email").value.trim(), pw = $("password").value;
+  if(!email || !pw){ $("loginErr").textContent = "請輸入帳號與密碼"; return; }
+  $("loginErr").textContent = ""; $("loginBtn").disabled = true; $("loginBtn").textContent = "登入中…";
+  try{
+    await setPersistence(auth, browserLocalPersistence);
+    await signInWithEmailAndPassword(auth, email, pw);
+  }catch(e){
+    $("loginErr").textContent = "登入失敗：帳號或密碼錯誤";
+    $("loginBtn").disabled = false; $("loginBtn").textContent = "登入";
+  }
+}
+$("logoutBtn").onclick = ()=> signOut(auth);
+
+onAuthStateChanged(auth, async (user)=>{
+  if(!user){
+    $("app").style.display = "none";
+    $("loginOverlay").style.display = "flex";
+    $("loginBtn").disabled = false; $("loginBtn").textContent = "登入";
+    $("password").value = "";
+    return;
+  }
+  // 強制刷新以取得最新 custom claim（避免剛改權限卻被舊 token 擋住）
+  let level = 0;
+  try { const r = await user.getIdTokenResult(true); level = Number(r.claims.level || 0); } catch {}
+  if(level < 4){
+    $("loginErr").textContent = `此帳號 (${user.email}) 非管理員，無法進入`;
+    await signOut(auth);
+    return;
+  }
+  $("loginOverlay").style.display = "none";
+  $("app").style.display = "block";
+  $("whoami").textContent = `${user.email}（level ${level}）`;
+  loadAccounts();
+  loadProducts();
+});
+
+// ───────── 分頁切換 ─────────
+document.querySelectorAll(".tab").forEach(t=>{
+  t.onclick = ()=>{
+    document.querySelectorAll(".tab").forEach(x=>x.classList.remove("active"));
+    document.querySelectorAll(".panel").forEach(x=>x.classList.remove("active"));
+    t.classList.add("active");
+    $("panel-" + t.dataset.tab).classList.add("active");
+  };
+});
+
+// ═════════ 帳號管理 ═════════
+$("reloadAcctBtn").onclick = loadAccounts;
+$("newAcctBtn").onclick = ()=>{ $("m-acct-email").value=""; $("m-acct-pw").value=""; $("m-acct-level").value="1"; openModal("acctModal"); };
+$("acctSaveBtn").onclick = createAccount;
+
+async function loadAccounts(){
+  $("acctBody").innerHTML = `<tr><td colspan="5" class="empty">載入中…</td></tr>`;
+  try{
+    const d = await api("/api/admin/users");
+    $("acctCount").textContent = `共 ${d.count} 個帳號`;
+    if(!d.users.length){ $("acctBody").innerHTML = `<tr><td colspan="5" class="empty">尚無帳號</td></tr>`; return; }
+    $("acctBody").innerHTML = d.users.map(u=>{
+      const opts = [1,2,3,4].map(l=>`<option value="${l}" ${l===u.level?"selected":""}>${l}</option>`).join("");
+      const mismatch = (u.levelFromDoc!=null && u.levelFromDoc!==u.level) ? ` <span class="muted">(${u.levelFromDoc})</span>` : "";
+      return `<tr>
+        <td>${esc(u.email)}</td>
+        <td><select data-email="${esc(u.email)}" class="lvSel" style="width:70px">${opts}</select></td>
+        <td>${u.levelFromDoc==null?'<span class="muted">—</span>':u.levelFromDoc}${mismatch}</td>
+        <td>${u.disabled?'<span class="pill off">停用</span>':'<span class="pill on">啟用</span>'}</td>
+        <td class="row-actions"><button class="btn-danger btn-sm" data-del="${esc(u.email)}">刪除</button></td>
+      </tr>`;
+    }).join("");
+    document.querySelectorAll(".lvSel").forEach(s=> s.onchange = ()=> changeLevel(s.dataset.email, Number(s.value)));
+    document.querySelectorAll("[data-del]").forEach(b=> b.onclick = ()=> deleteAccount(b.dataset.del));
+  }catch(e){ $("acctBody").innerHTML = `<tr><td colspan="5" class="empty">載入失敗：${esc(e.message)}</td></tr>`; }
+}
+
+async function createAccount(){
+  const email = $("m-acct-email").value.trim();
+  const password = $("m-acct-pw").value;
+  const level = Number($("m-acct-level").value);
+  if(!email || password.length<6){ toast("Email 必填、密碼至少 6 碼","err"); return; }
+  $("acctSaveBtn").disabled = true;
+  try{
+    await api("/api/admin/users", { method:"POST", body:{ email, password, level } });
+    toast(`已建立 ${email}`); closeModal("acctModal"); loadAccounts();
+  }catch(e){ toast(e.message,"err"); }
+  finally{ $("acctSaveBtn").disabled = false; }
+}
+async function changeLevel(email, level){
+  try{ await api(`/api/admin/users/${encodeURIComponent(email)}`, { method:"PATCH", body:{ level } });
+    toast(`${email} → level ${level}（需重新登入生效）`);
+  }catch(e){ toast(e.message,"err"); loadAccounts(); }
+}
+async function deleteAccount(email){
+  if(!confirm(`確定刪除帳號 ${email}？此動作無法復原。`)) return;
+  try{ await api(`/api/admin/users/${encodeURIComponent(email)}`, { method:"DELETE" });
+    toast(`已刪除 ${email}`); loadAccounts();
+  }catch(e){ toast(e.message,"err"); }
+}
+
+// ═════════ 商品管理 ═════════
+let ALL_PRODUCTS = [];
+$("reloadProdBtn").onclick = loadProducts;
+$("prodSearch").oninput = renderProducts;
+$("prodStatusFilter").onchange = renderProducts;
+$("newProdBtn").onclick = ()=> openProductModal("create", null);
+$("prodSaveBtn").onclick = submitProduct;
+$("importBtn").onclick = ()=> $("importFile").click();
+$("importFile").onchange = handleImportFile;
+
+async function loadProducts(){
+  $("prodBody").innerHTML = `<tr><td colspan="9" class="empty">載入中…</td></tr>`;
+  try{
+    const d = await api("/api/admin/products");
+    ALL_PRODUCTS = d.products || [];
+    renderProducts();
+  }catch(e){ $("prodBody").innerHTML = `<tr><td colspan="9" class="empty">載入失敗：${esc(e.message)}</td></tr>`; }
+}
+
+function renderProducts(){
+  const kw = $("prodSearch").value.trim().toLowerCase();
+  const sf = $("prodStatusFilter").value;
+  let list = ALL_PRODUCTS;
+  if(sf) list = list.filter(p=> (p.status||"active")===sf);
+  if(kw) list = list.filter(p=> [p.splitCode,p.name,p.model,p.mainModel,p.brand].some(v=> String(v||"").toLowerCase().includes(kw)));
+  $("prodCount").textContent = `顯示 ${list.length} / 共 ${ALL_PRODUCTS.length} 筆`;
+  if(!list.length){ $("prodBody").innerHTML = `<tr><td colspan="9" class="empty">無符合商品</td></tr>`; return; }
+  $("prodBody").innerHTML = list.map(p=>{
+    const active = (p.status||"active")!=="inactive";
+    const q450 = ((p.quotes||{})["4"]||{})["50"];
+    return `<tr>
+      <td>${esc(p.splitCode)}</td>
+      <td class="wrap">${esc(p.name)}</td>
+      <td>${esc(p.model)}</td>
+      <td>${active?'<span class="pill on">上架</span>':'<span class="pill off">停產</span>'}</td>
+      <td>${p.cost==null?'<span class="muted">—</span>':esc(p.cost)}</td>
+      <td>${p.marketPrice==null?'—':esc(p.marketPrice)}</td>
+      <td>${p.inventory==null?'—':esc(p.inventory)}</td>
+      <td>${q450==null?'<span class="muted">—</span>':esc(q450)}</td>
+      <td class="row-actions">
+        <button class="btn-ghost btn-sm" data-edit="${esc(p.splitCode)}">編輯</button>
+        <button class="${active?'btn-warn':'btn-ghost'} btn-sm" data-toggle="${esc(p.splitCode)}">${active?'停產':'上架'}</button>
+        <button class="btn-danger btn-sm" data-pdel="${esc(p.splitCode)}">刪除</button>
+      </td>
+    </tr>`;
+  }).join("");
+  document.querySelectorAll("[data-edit]").forEach(b=> b.onclick = ()=> openProductModal("edit", ALL_PRODUCTS.find(x=>String(x.splitCode)===b.dataset.edit)));
+  document.querySelectorAll("[data-toggle]").forEach(b=> b.onclick = ()=> toggleStatus(b.dataset.toggle));
+  document.querySelectorAll("[data-pdel]").forEach(b=> b.onclick = ()=> deleteProduct(b.dataset.pdel));
+}
+
+const PFIELDS = ["sc","name","model","mainModel","brand","category","cost","marketPrice","minPrice","inventory","eta","internationalBarcode","barcode","cartonQty","statusText","mainImage","netImages"];
+let EDIT_MODE = "create";
+function openProductModal(mode, p){
+  EDIT_MODE = mode;
+  $("prodModalTitle").textContent = mode==="create" ? "新增商品" : `編輯商品 — ${p.splitCode}`;
+  $("prodModalHint").textContent = mode==="create" ? "成本輸入後會自動換算 quotes。" : "只會更新有填寫的欄位；圖片等其他欄位保留不變。";
+  // 清空
+  PFIELDS.forEach(f=> $("m-"+f).value = "");
+  $("m-status").value = "active";
+  if(mode==="edit" && p){
+    $("m-sc").value = p.splitCode ?? "";
+    $("m-name").value = p.name ?? ""; $("m-model").value = p.model ?? "";
+    $("m-mainModel").value = p.mainModel ?? ""; $("m-brand").value = p.brand ?? "";
+    $("m-category").value = p.category ?? ""; $("m-cost").value = p.cost ?? "";
+    $("m-marketPrice").value = p.marketPrice ?? ""; $("m-minPrice").value = p.minPrice ?? "";
+    $("m-inventory").value = p.inventory ?? ""; $("m-eta").value = p.eta ?? "";
+    $("m-internationalBarcode").value = p.internationalBarcode ?? ""; $("m-barcode").value = p.barcode ?? "";
+    $("m-cartonQty").value = p.cartonQty ?? ""; $("m-statusText").value = p.statusText ?? "";
+    $("m-mainImage").value = p.imageUrl ?? p.mainImage ?? "";
+    $("m-netImages").value = Array.isArray(p.netImages) ? p.netImages.join("\n") : "";
+    $("m-status").value = (p.status||"active");
+    $("m-sc").readOnly = true; $("m-sc").style.background = "#f3f4f6";
+  } else {
+    $("m-sc").readOnly = false; $("m-sc").style.background = "#fff";
+  }
+  openModal("prodModal");
+}
+
+function numOrUndef(v){ v = String(v).trim(); if(v==="") return undefined; const n = Number(v); return isNaN(n)?undefined:n; }
+function strOrUndef(v){ v = String(v).trim(); return v===""?undefined:v; }
+
+async function submitProduct(){
+  const sc = $("m-sc").value.trim();
+  if(!sc){ toast("商品編號 splitCode 必填","err"); return; }
+  const payload = {
+    name: strOrUndef($("m-name").value), model: strOrUndef($("m-model").value),
+    mainModel: strOrUndef($("m-mainModel").value), brand: strOrUndef($("m-brand").value),
+    category: strOrUndef($("m-category").value), cost: numOrUndef($("m-cost").value),
+    marketPrice: numOrUndef($("m-marketPrice").value), minPrice: numOrUndef($("m-minPrice").value),
+    inventory: numOrUndef($("m-inventory").value), eta: strOrUndef($("m-eta").value),
+    internationalBarcode: strOrUndef($("m-internationalBarcode").value), barcode: strOrUndef($("m-barcode").value),
+    cartonQty: numOrUndef($("m-cartonQty").value), statusText: strOrUndef($("m-statusText").value),
+    status: $("m-status").value,
+  };
+  const mainImg = strOrUndef($("m-mainImage").value);
+  if(mainImg){ payload.mainImage = mainImg; payload.imageUrl = mainImg; }
+  const netArr = String($("m-netImages").value).split(/\n+/).map(s=>s.trim()).filter(Boolean);
+  if(netArr.length) payload.netImages = netArr;
+  Object.keys(payload).forEach(k=> payload[k]===undefined && delete payload[k]);
+  $("prodSaveBtn").disabled = true;
+  try{
+    if(EDIT_MODE==="create"){
+      payload.splitCode = sc;
+      await api("/api/admin/products", { method:"POST", body:payload });
+      toast(`已新增商品 ${sc}`);
+    }else{
+      await api(`/api/admin/products/${encodeURIComponent(sc)}`, { method:"PUT", body:payload });
+      toast(`已更新商品 ${sc}`);
+    }
+    closeModal("prodModal"); loadProducts();
+  }catch(e){ toast(e.message,"err"); }
+  finally{ $("prodSaveBtn").disabled = false; }
+}
+
+async function toggleStatus(sc){
+  const p = ALL_PRODUCTS.find(x=>String(x.splitCode)===String(sc)); if(!p) return;
+  const toActive = (p.status||"active")==="inactive";
+  if(!confirm(`確定要將 ${sc} ${toActive?"重新上架":"停產（從查價下架）"}？`)) return;
+  try{ await api(`/api/admin/products/${encodeURIComponent(sc)}`, { method:"PUT", body:{ status: toActive?"active":"inactive" } });
+    toast(`${sc} 已${toActive?"上架":"停產"}`); loadProducts();
+  }catch(e){ toast(e.message,"err"); }
+}
+async function deleteProduct(sc){
+  if(!confirm(`確定「永久刪除」商品 ${sc}？建議改用「停產」。此動作無法復原。`)) return;
+  try{ await api(`/api/admin/products/${encodeURIComponent(sc)}`, { method:"DELETE" });
+    toast(`已刪除 ${sc}`); loadProducts();
+  }catch(e){ toast(e.message,"err"); }
+}
+
+// ───────── Excel 匯入（瀏覽器端 SheetJS 解析 → 後端批次 upsert）─────────
+const HMAP = {
+  "分流":"splitCode","商品編號":"splitCode","splitCode":"splitCode","編號":"splitCode",
+  "品牌":"brand","分類":"category",
+  "型號":"model","主型號":"mainModel",
+  "商品名稱":"name","品名":"name",
+  "成本":"cost","詢價含":"cost","詢價":"cost",
+  "市售價":"marketPrice","市價含":"marketPrice","市價":"marketPrice",
+  "最低價":"minPrice","售價含":"minPrice","售價":"minPrice",
+  "箱入數":"cartonQty","庫存":"inventory","到貨":"eta","eta":"eta",
+  "國際條碼":"barcode","條碼":"barcode",
+  "BSMI":"bsmi","bsmi":"bsmi","NCC":"ncc","ncc":"ncc",
+  "狀態":"status",
+  "商品網址":"productUrl","商品對應網站":"productUrl",
+  "大圖網址":"mainImage","大圖":"mainImage",
+  "網路圖":"netImages",
+};
+const PNUM = ["cost","marketPrice","minPrice","inventory","cartonQty"];
+function mapRow(raw){
+  const o = {};
+  for(const k in raw){
+    const f = HMAP[String(k).replace(/\s/g,"")];
+    if(!f) continue;
+    let v = raw[k]; if(typeof v==="string") v = v.trim();
+    if(v===""||v==null) continue;
+    if(PNUM.includes(f)){ const n = Number(String(v).replace(/,/g,"")); if(!isNaN(n)) o[f]=n; }
+    else if(f==="netImages"){ const a = String(v).split(/[;；\n／]+/).map(s=>s.trim()).filter(Boolean); if(a.length) o.netImages=a; }
+    else if(f==="status"){ o.status = ["停產","下架","inactive"].includes(String(v)) ? "inactive" : "active"; }
+    else if(f==="barcode"){ o.barcode=String(v); o.internationalBarcode=String(v); }
+    else if(f==="mainImage"){ o.mainImage=String(v); o.imageUrl=String(v); }
+    else o[f]=String(v);
+  }
+  return o;
+}
+async function handleImportFile(e){
+  const file = e.target.files[0]; if(!file) return;
+  e.target.value = "";  // 重置，讓同一檔可再次選取
+  let rows;
+  try{
+    const XLSX = await import("https://cdn.sheetjs.com/xlsx-0.20.3/package/xlsx.mjs");
+    const wb = XLSX.read(await file.arrayBuffer(), { type:"array" });
+    rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { defval:"" });
+  }catch(err){ toast("讀取 Excel 失敗："+err.message, "err"); return; }
+  const products = rows.map(mapRow).filter(p=> p.splitCode);
+  if(!products.length){ toast("找不到可匯入資料（需有「分流」欄與資料列）", "err"); return; }
+  if(!confirm(`即將匯入 ${products.length} 筆（已存在→更新、不存在→新建），確定？`)) return;
+  try{
+    const r = await api("/api/admin/products/import", { method:"POST", body:{ products } });
+    toast(`匯入完成：新建 ${r.created}、更新 ${r.updated}、失敗 ${r.failed}`, r.failed? "" : "ok");
+    if(r.failed){
+      const errs = r.results.filter(x=> x.status==="error").slice(0,12)
+        .map(x=> `列${x.row} ${x.splitCode||"(無編號)"}: ${x.error}`).join("\n");
+      alert(`有 ${r.failed} 筆失敗：\n${errs}`);
+    }
+    loadProducts();
+  }catch(err){ toast("匯入失敗："+err.message, "err"); }
+}
+
+// ───────── Modal 控制（全域）─────────
+window.openModal = (id)=> $(id).classList.add("show");
+window.closeModal = (id)=> $(id).classList.remove("show");
+document.querySelectorAll(".modal-bg").forEach(bg=>{ bg.onclick = (e)=>{ if(e.target===bg) bg.classList.remove("show"); }; });
+</script>
+</body>
+</html>
