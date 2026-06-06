@@ -131,7 +131,7 @@ export function searchProducts() {
       r = r.filter(p => {
         let price = 0;
         if (qty) {
-            const livePrice = calcQuotePrice(p.cost, Number(qty), state.userLevel);
+            const livePrice = calcQuotePrice(p, Number(qty), state.userLevel);
             price = Number(livePrice) || 0;
         } else {
             price = Number(p.marketPrice) || 0;

@@ -121,7 +121,7 @@ async function buildProductSlide(pptx, item, tier, customQuoteInfo, context) {
         quoteLabel = `專案報價 (${customQuoteInfo.qtyLabel})`;
         quotePriceStr = `$${customQuoteInfo.price}`;
     } else {
-        const p = calcQuotePrice(item.cost, Number(tier), state.userLevel);
+        const p = calcQuotePrice(item, Number(tier), state.userLevel);
         quoteLabel = `批量報價 (${tier}pcs)`;
         quotePriceStr = `$${p ?? "-"}`;
     }
@@ -410,7 +410,7 @@ export function exportSelectedExcel() {
 
           if (qty) {
               const canSeeQuote = canViewTier(state.userLevel, Number(qty));
-              const livePrice = calcQuotePrice(item.cost, Number(qty), state.userLevel);
+              const livePrice = calcQuotePrice(item, Number(qty), state.userLevel);
               const cost = canSeeQuote ? (livePrice ?? "-") : "---";
               priceRow = [cost, displayMin, item.marketPrice ?? "-", stock];
           } else {

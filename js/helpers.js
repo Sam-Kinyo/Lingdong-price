@@ -31,15 +31,14 @@ export function canViewTier(level, qty) {
   return getVisibleTiers(level).includes(Number(qty));
 }
 
-export function calcQuotePrice(cost, qty, level) {
-  const c = Number(cost);
-  if (!Number.isFinite(c) || c <= 0) return null;
-  const q = Number(qty);
-  const tierMap = QUOTE_DIVISORS[getEffectiveLevel(level)];
-  if (!tierMap) return null;
-  const divisor = tierMap[q];
-  if (!divisor) return null;
-  return Math.ceil((c / divisor) * 1.05);
+export function calcQuotePrice(item, qty, level) {
+  // 方案 B：報價改讀匯入時預存的 item.quotes（前端不再需要、也拿不到 cost）。
+  // 簽名沿用 (item, qty, level)，但第一參數改傳「整個商品物件」而非 cost。
+  if (!item || typeof item !== "object") return null;
+  const lv = String(getEffectiveLevel(level));
+  const q = String(Number(qty));
+  const v = item?.quotes?.[lv]?.[q];
+  return (v === undefined || v === null) ? null : Number(v);
 }
 
 /* 庫存判斷邏輯 */

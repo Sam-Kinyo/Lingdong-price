@@ -95,7 +95,7 @@ export function renderResults(list) {
     const tr = document.createElement("tr");
     let priceHtml = ""; 
     const getQuoteByTier = (tier) => {
-      const v = calcQuotePrice(item.cost, tier, state.userLevel);
+      const v = calcQuotePrice(item, tier, state.userLevel);
       return v !== null ? v : "-";
     };
 
@@ -265,7 +265,7 @@ export function showDetailMobile(item) {
 
   const getPrice = (p) => (item[p] ?? "-");
   const getQuoteByTier = (tier) => {
-      const v = calcQuotePrice(item.cost, tier, state.userLevel);
+      const v = calcQuotePrice(item, tier, state.userLevel);
       return v !== null ? v : "-";
   };
   const showMinPrice = state.userLevel >= 1;
@@ -435,7 +435,7 @@ export function showDetailDesktop(item) {
 
   const getPrice = (p) => (item[p] ?? "-");
   const getQuoteByTier = (tier) => {
-      const v = calcQuotePrice(item.cost, tier, state.userLevel);
+      const v = calcQuotePrice(item, tier, state.userLevel);
       return v !== null ? v : "-";
   };
   const showMinPrice = state.userLevel >= 1;

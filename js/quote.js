@@ -151,7 +151,7 @@ export async function logQuoteAction(items, sourceMode) {
         } else {
             const currentTier = document.getElementById("qtySelect").value || "50"; 
             items.forEach(i => {
-                let finalPrice = calcQuotePrice(i.cost, Number(currentTier), state.userLevel) || 0;
+                let finalPrice = calcQuotePrice(i, Number(currentTier), state.userLevel) || 0;
                 if(state.currentUserVipConfig) {
                      finalPrice = i[state.currentUserVipConfig.column] || 0;
                 }

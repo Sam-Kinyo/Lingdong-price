@@ -258,7 +258,7 @@ document.addEventListener("click", (e) => {
 
     const qtySelect = document.getElementById("qtySelect");
     const qty = qtySelect.value || "50";
-    const livePrice = calcQuotePrice(item.cost, Number(qty), state.userLevel);
+    const livePrice = calcQuotePrice(item, Number(qty), state.userLevel);
     const cost = livePrice ?? 0;
 
     const existingIndex = state.quoteList.findIndex(q => q.model === item.model && q.qtyLabel === `${qty}個`);
@@ -298,21 +298,21 @@ document.addEventListener("click", (e) => {
     if (currentQty) {
         const canSee = canViewTier(state.userLevel, Number(currentQty));
         if(canSee) {
-              const live = calcQuotePrice(item.cost, Number(currentQty), state.userLevel);
+              const live = calcQuotePrice(item, Number(currentQty), state.userLevel);
               costText += `${currentQty}個：${live ?? "-"}\n`;
         } else {
               costText += `${currentQty}個：(無權限)\n`;
         }
     } else {
-        if (state.userLevel >= 1) costText += `50個：${calcQuotePrice(item.cost, 50, state.userLevel) ?? "-"}\n`;
-        if (state.userLevel >= 1) costText += `100個：${calcQuotePrice(item.cost, 100, state.userLevel) ?? "-"}\n`;
-        if (state.userLevel >= 2) costText += `300個：${calcQuotePrice(item.cost, 300, state.userLevel) ?? "-"}\n`;
+        if (state.userLevel >= 1) costText += `50個：${calcQuotePrice(item, 50, state.userLevel) ?? "-"}\n`;
+        if (state.userLevel >= 1) costText += `100個：${calcQuotePrice(item, 100, state.userLevel) ?? "-"}\n`;
+        if (state.userLevel >= 2) costText += `300個：${calcQuotePrice(item, 300, state.userLevel) ?? "-"}\n`;
         if (state.userLevel >= 3) {
-          costText += `500個：${calcQuotePrice(item.cost, 500, state.userLevel) ?? "-"}\n`;
-          costText += `1000個：${calcQuotePrice(item.cost, 1000, state.userLevel) ?? "-"}\n`;
+          costText += `500個：${calcQuotePrice(item, 500, state.userLevel) ?? "-"}\n`;
+          costText += `1000個：${calcQuotePrice(item, 1000, state.userLevel) ?? "-"}\n`;
         }
         if (state.userLevel >= 4) {
-          costText += `3000個：${calcQuotePrice(item.cost, 3000, state.userLevel) ?? "-"}\n`;
+          costText += `3000個：${calcQuotePrice(item, 3000, state.userLevel) ?? "-"}\n`;
         }
     }
 
@@ -368,7 +368,7 @@ if (batchAddQuoteBtn) {
             const item = state.currentResultList.find(p => p.model === model);
             if (!item) return;
 
-            const livePrice = calcQuotePrice(item.cost, Number(qty), state.userLevel);
+            const livePrice = calcQuotePrice(item, Number(qty), state.userLevel);
             const cost = livePrice ?? 0;
             const qtyLabel = `${qty}個`;
 
@@ -413,7 +413,7 @@ if (multiLineBtn) {
             if (!item) return;
 
             const canSeeQuote = canViewTier(state.userLevel, Number(qty));
-            const livePrice = calcQuotePrice(item.cost, Number(qty), state.userLevel);
+            const livePrice = calcQuotePrice(item, Number(qty), state.userLevel);
             const cost = canSeeQuote ? (livePrice ?? "-") : "---";
             const market = item.marketPrice ?? "-";
             const link = item.productUrl || "無連結";
