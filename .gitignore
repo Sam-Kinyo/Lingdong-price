@@ -1,6 +1,9 @@
 # 敏感金鑰 - 絕對不能上傳到 GitHub
 backend/serviceAccountKey.json
 
+# Firestore 資料匯出（含 auth_users 的 email/passwordHash 等個資憑證，絕不上傳）
+firestore_export/
+
 # Python cache
 backend/__pycache__/
 backend/**/__pycache__/
@@ -18,3 +21,10 @@ Thumbs.db
 
 # Local temp profiling output
 new_excel_profile.json
+
+# 圖片爬蟲衍生產物（可重新產生，不入庫避免 repo 肥大）
+downloaded_images/
+download_report.csv
+
+# 本地資料備份
+products_local.backup_*.json
