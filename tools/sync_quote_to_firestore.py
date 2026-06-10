@@ -154,7 +154,13 @@ def parse_workbook(path):
                 netSalesPermission="",
                 sourceSheet=sn,
             )
-            items[sc]["quotes"] = quotes_for(items[sc]["cost"])
+            # 總表慣例：價格 0/空 = 未提供（如「最低特價含」整欄 0）→ 不寫入，merge 保留線上既有值
+            for pf in ("cost", "marketPrice", "minPrice"):
+                if not items[sc].get(pf):
+                    items[sc].pop(pf, None)
+            q = quotes_for(items[sc].get("cost"))
+            if q:  # cost 未提供時不寫 quotes，避免空 {} 蓋掉線上預存報價
+                items[sc]["quotes"] = q
             cnt += 1
         sheet_stats[sn] = cnt
     return items, sheet_stats
@@ -194,6 +200,8 @@ def main():
         cur = online[sc]
         diffs = []
         for f in CMP_FIELDS:
+            if f in PRICE_FIELDS and f not in obj:
+                continue  # 價格未提供（0/空）→ 不寫入也不列入差異
             ov, nv = cur.get(f), obj.get(f)
             if f in PRICE_FIELDS:
                 if round(float(ov or 0), 2) != round(float(nv or 0), 2):

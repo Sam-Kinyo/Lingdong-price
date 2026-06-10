@@ -97,14 +97,14 @@ export function downloadQuoteExcel() {
               driveMain || "", (driveNetList || []).join(" | ")
           ];
 
-          let displayMin = showMinPrice ? (item.minPrice ?? "-") : "---";
+          let displayMin = showMinPrice ? (item.minPrice || "-") : "---";
           if (state.currentUserVipConfig && item[state.currentUserVipConfig.column]) {
                displayMin = "-"; 
           }
 
           const priceRow = [
               q.qtyLabel, q.price, q.count, subtotal,
-              displayMin, item.marketPrice ?? "-", stock
+              displayMin, item.marketPrice || "-", stock
           ];
           
           rows.push([...baseRow, ...priceRow]);

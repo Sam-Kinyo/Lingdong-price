@@ -142,7 +142,7 @@ export function renderResults(list) {
 
     const showMinPrice = state.userLevel >= 1;
     let minPriceDisplay = "";
-    let marketPriceDisplay = item.marketPrice ?? "-";
+    let marketPriceDisplay = item.marketPrice || "-";
 
     if (state.currentUserVipConfig) {
         const vipPriceVal = item[state.currentUserVipConfig.column];
@@ -150,15 +150,15 @@ export function renderResults(list) {
             minPriceDisplay = "";
             marketPriceDisplay = "";
         } else {
-            minPriceDisplay = item.minPrice ?? "-";
-            marketPriceDisplay = item.marketPrice ?? "-";
+            minPriceDisplay = item.minPrice || "-";
+            marketPriceDisplay = item.marketPrice || "-";
         }
     } else if (state.isGroupBuyUser) {
         minPriceDisplay = "-"; 
-        marketPriceDisplay = item.marketPrice ?? "-";
+        marketPriceDisplay = item.marketPrice || "-";
     } else {
-        minPriceDisplay = showMinPrice ? (item.minPrice ?? "-") : "---";
-        marketPriceDisplay = item.marketPrice ?? "-";
+        minPriceDisplay = showMinPrice ? (item.minPrice || "-") : "---";
+        marketPriceDisplay = item.marketPrice || "-";
     }
     const catBadge = item.category ? `<span class="category-badge">${item.category}</span>` : "";
     const variantStockHtml = renderStockByVariant(item);
@@ -263,7 +263,7 @@ export function showDetailMobile(item) {
       img = backupImg;
   }
 
-  const getPrice = (p) => (item[p] ?? "-");
+  const getPrice = (p) => (item[p] || "-"); // 0 = 未提供，顯示 "-"
   const getQuoteByTier = (tier) => {
       const v = calcQuotePrice(item, tier, state.userLevel);
       return v !== null ? v : "-";
@@ -433,7 +433,7 @@ export function showDetailDesktop(item) {
       netThumbHtml = `<div class="net-gallery" style="grid-template-columns:repeat(6, 1fr); gap:4px; margin-top:8px;">${imgsHtml}</div>`;
   }
 
-  const getPrice = (p) => (item[p] ?? "-");
+  const getPrice = (p) => (item[p] || "-"); // 0 = 未提供，顯示 "-"
   const getQuoteByTier = (tier) => {
       const v = calcQuotePrice(item, tier, state.userLevel);
       return v !== null ? v : "-";

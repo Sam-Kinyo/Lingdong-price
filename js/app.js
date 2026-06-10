@@ -289,7 +289,7 @@ document.addEventListener("click", (e) => {
     if (!item) return;
 
     const showMinPrice = state.userLevel >= 1;
-    const getPrice = (p) => (item[p] ?? "-");
+    const getPrice = (p) => (item[p] || "-"); // 0 = 未提供，顯示 "-"
     const qtySelect = document.getElementById("qtySelect");
 
     let costText = "";
@@ -415,7 +415,7 @@ if (multiLineBtn) {
             const canSeeQuote = canViewTier(state.userLevel, Number(qty));
             const livePrice = calcQuotePrice(item, Number(qty), state.userLevel);
             const cost = canSeeQuote ? (livePrice ?? "-") : "---";
-            const market = item.marketPrice ?? "-";
+            const market = item.marketPrice || "-";
             const link = item.productUrl || "無連結";
 
             text += `${i + 1}. 【${item.model}】${item.name}\n`;

@@ -75,6 +75,18 @@ class ImportBody(BaseModel):
     products: list[ProductUpsertBody]
 
 
+# 總表慣例：價格欄 0 = 未提供/無特價（如「最低特價含」整欄 0），寫入會蓋掉線上售價
+ZERO_MEANS_UNSET = ("cost", "marketPrice", "minPrice")
+
+
+def _dump_clean(body: ProductUpsertBody) -> dict:
+    data = body.model_dump(exclude_none=True)
+    for f in ZERO_MEANS_UNSET:
+        if data.get(f) == 0:
+            data.pop(f)
+    return data
+
+
 # ═══════════════════════════════════════════
 # GET /api/admin/products
 # ═══════════════════════════════════════════
@@ -115,7 +127,7 @@ async def create_product(
     if ref.get().exists:
         raise HTTPException(status_code=409, detail=f"商品已存在：{sc}")
 
-    data = body.model_dump(exclude_none=True)
+    data = _dump_clean(body)
     cost = data.pop("cost", None)
     data.pop("splitCode", None)
     data["splitCode"] = sc
@@ -147,7 +159,7 @@ async def update_product(
     if not ref.get().exists:
         raise HTTPException(status_code=404, detail=f"找不到商品：{sc}")
 
-    data = body.model_dump(exclude_none=True)
+    data = _dump_clean(body)
     cost = data.pop("cost", None)
     data.pop("splitCode", None)  # splitCode 不可改（doc id）
     if cost is not None:
@@ -210,7 +222,7 @@ async def import_products(
             results.append({"row": idx + 1, "splitCode": "", "status": "error", "error": "缺商品編號 splitCode"})
             continue
         try:
-            data = item.model_dump(exclude_none=True)
+            data = _dump_clean(item)
             cost = data.pop("cost", None)
             data.pop("splitCode", None)
             if cost is not None:

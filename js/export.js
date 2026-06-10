@@ -403,7 +403,7 @@ export function exportSelectedExcel() {
 
           let priceRow = [];
           
-          let displayMin = showMinPrice ? (item.minPrice ?? "-") : "---";
+          let displayMin = showMinPrice ? (item.minPrice || "-") : "---";
           if (state.currentUserVipConfig && item[state.currentUserVipConfig.column]) {
                displayMin = "-"; 
           }
@@ -412,9 +412,9 @@ export function exportSelectedExcel() {
               const canSeeQuote = canViewTier(state.userLevel, Number(qty));
               const livePrice = calcQuotePrice(item, Number(qty), state.userLevel);
               const cost = canSeeQuote ? (livePrice ?? "-") : "---";
-              priceRow = [cost, displayMin, item.marketPrice ?? "-", stock];
+              priceRow = [cost, displayMin, item.marketPrice || "-", stock];
           } else {
-              priceRow = [displayMin, item.marketPrice ?? "-", stock];
+              priceRow = [displayMin, item.marketPrice || "-", stock];
           }
           rows.push([...baseRow, ...priceRow]);
       });

@@ -196,7 +196,7 @@
       <div><label>分類 category</label><input id="m-category" /></div>
       <div><label>成本 cost（→自動算報價）</label><input id="m-cost" type="number" step="0.01" /></div>
       <div><label>市售價 marketPrice</label><input id="m-marketPrice" type="number" step="0.01" /></div>
-      <div><label>最低價 minPrice</label><input id="m-minPrice" type="number" step="0.01" /></div>
+      <div><label>售價 minPrice（=總表「售價含」，勿填最低特價的 0）</label><input id="m-minPrice" type="number" step="0.01" /></div>
       <div><label>庫存 inventory</label><input id="m-inventory" type="number" /></div>
       <div><label>到貨 eta</label><input id="m-eta" /></div>
       <div><label>國際條碼</label><input id="m-internationalBarcode" /></div>
@@ -499,6 +499,7 @@ const HMAP = {
   "網路圖":"netImages",
 };
 const PNUM = ["cost","marketPrice","minPrice","inventory","cartonQty"];
+const PZERO_SKIP = ["cost","marketPrice","minPrice"]; // 總表慣例：價格 0 = 未提供/無特價，不寫入（避免蓋掉線上售價）
 function mapRow(raw){
   const o = {};
   for(const k in raw){
@@ -506,7 +507,7 @@ function mapRow(raw){
     if(!f) continue;
     let v = raw[k]; if(typeof v==="string") v = v.trim();
     if(v===""||v==null) continue;
-    if(PNUM.includes(f)){ const n = Number(String(v).replace(/,/g,"")); if(!isNaN(n)) o[f]=n; }
+    if(PNUM.includes(f)){ const n = Number(String(v).replace(/,/g,"")); if(!isNaN(n) && !(n===0 && PZERO_SKIP.includes(f))) o[f]=n; }
     else if(f==="netImages"){ const a = String(v).split(/[;；\n／]+/).map(s=>s.trim()).filter(Boolean); if(a.length) o.netImages=a; }
     else if(f==="status"){ o.status = ["停產","下架","inactive"].includes(String(v)) ? "inactive" : "active"; }
     else if(f==="barcode"){ o.barcode=String(v); o.internationalBarcode=String(v); }
